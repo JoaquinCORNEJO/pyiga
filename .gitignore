@@ -1,0 +1,10 @@
+results/
+__pycache__/
+data/
+*.pdf
+*.png
+*.ods
+*.dat
+*.csv
+*.npy
+*.pkl

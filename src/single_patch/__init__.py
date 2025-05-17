@@ -1,0 +1,14 @@
+from ..__init__ import *
+from ..lib_tensor_maths import (bspline_operations,
+							matrixfree,
+							fastdiagonalization,
+							eval_inverse_and_determinant
+)
+from ..lib_quadrules import gauss_quadrature
+from ..lib_boundary import (boundary_condition,
+						convert_boundary_str_to_int,
+						create_connectivity_table,
+)
+from ..lib_solver import solver, clean_dirichlet
+from ..lib_part import singlepatch
+from ..lib_material import heat_transfer_mat, plasticity
