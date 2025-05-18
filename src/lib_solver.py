@@ -1,6 +1,6 @@
 from .__init__ import *
 
-def clean_dirichlet(array, idx_nodes):
+def clean_dirichlet(array:np.ndarray, idx_nodes:list):
 	""" 
 	Set specified indices of an array to 0 to apply Dirichlet boundary conditions.
 
@@ -37,7 +37,7 @@ class solver():
 		self._safeguard = 1.e-14
 		return
 	
-	def eigs(self, N, Afun, Bfun=None, Pfun=None, k=6, which='LM'):
+	def eigs(self, N:int, Afun:function, Bfun:function=None, Pfun:function=None, k:int=6, which:str='LM'):
 		"""
 		Compute the eigenvalues and eigenvectors of a linear operator.
 
@@ -77,7 +77,7 @@ class solver():
 		eigvecs_sorted = eigvecs[:, sorted_indices]
 		return eigvals_sorted, eigvecs_sorted
 	
-	def CG(self, Afun, b, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
+	def CG(self, Afun:function, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
 		"""
 		Conjugate Gradient (CG) solver for solving the linear system Ax = b.
 
@@ -121,7 +121,7 @@ class solver():
 			return {'sol': x, 'res': [0]}
 
 		ptilde = Pfun(r); cleanfun(ptilde, dod)
-		p = ptilde.copy()
+		p = np.copy(ptilde)
 		rsold = dotfun(r, ptilde)
 		res = [1.0]
 
@@ -138,11 +138,11 @@ class solver():
 			ptilde = Pfun(r); cleanfun(ptilde, dod)
 			rsnew = dotfun(r, ptilde)
 			p = ptilde + rsnew/rsold*p
-			rsold = rsnew.copy()
+			rsold = np.copy(rsnew)
 
 		return {'sol': x, 'res': res}
 	
-	def BiCGSTAB(self, Afun, b, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
+	def BiCGSTAB(self, Afun:function, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
 		"""
 		BiConjugate Gradient Stabilized (BiCGSTAB) method for solving linear systems.
 
@@ -221,11 +221,11 @@ class solver():
 			rsnew = dotfun(r, rhat)
 			beta = (alpha/omega)*(rsnew/rsold)
 			p = r + beta*(p - omega*Aptilde)
-			rsold = rsnew.copy()
+			rsold = np.copy(rsnew)
 
 		return {'sol': x, 'res': res}
 	
-	def GMRES(self, Afun, b, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
+	def GMRES(self, Afun:function, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
 		"""
 		Generalized Minimal Residual Method (GMRES) for solving a linear system of equations.
 		Parameters:

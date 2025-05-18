@@ -170,7 +170,7 @@ class gauss_quadrature(quadrature_rule):
 		weights[:, 3] = basis[:, 1] * self._parametric_weights[indj]
 		weights[:, 1] = weights[:, 0]
 		weights[:, 2] = weights[:, 3]
-		super()._set_coo_basis_weights(self, basis, weights, [indi, indj])
+		super()._set_coo_basis_weights(basis, weights, [indi, indj])
 		return
 
 	def export_quadrature_rules(self):
