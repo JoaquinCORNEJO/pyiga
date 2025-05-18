@@ -1,21 +1,21 @@
 from .__init__ import *
 
-def find_interpolation_span(array, x, threshold=1e-8):
+def find_interpolation_span(array:np.ndarray, x:float, threshold=1e-8):
 	"""
 	Find the span in the array where the value x fits within the given threshold.
 	"""
 	span = 1
-	while (span<len(array)-1 and (array[span]-x<=threshold)):
+	while (span < (len(array) - 1) and (array[span] - x <= threshold)):
 		span += 1
 	return span - 1
 
-def find_multiplicity(knotvector, knot, threshold=1e-8):
+def find_multiplicity(knotvector:np.ndarray, knot:float, threshold=1e-8):
 	"""
 	Find the multiplicity of a knot in the knot vector within the given threshold.
 	"""
 	return np.sum(np.abs(knotvector - knot) <= threshold)
 
-def increase_multiplicity_to_knotvector(repeat, degree, knotvector):
+def increase_multiplicity_to_knotvector(repeat:int, degree:int, knotvector:np.ndarray):
 	"""
 	Returns an open knot vector with higher multiplicity.
 	"""
@@ -27,9 +27,9 @@ def increase_multiplicity_to_knotvector(repeat, degree, knotvector):
 		kv_out.extend([knot] * m)
 
 	kv_out.extend([knotvector[-1]] * (degree + 1))
-	return kv_out
+	return np.array(kv_out)
 
-def eval_ders_basis_COO_format(degree, knotvector, knots):
+def eval_ders_basis_COO_format(degree:int, knotvector:np.ndarray, knots:np.ndarray):
 	""" Evaluates B-spline functions and its first derivative at given knots.
 		It returns matrices in CSR format.
 	"""
@@ -49,7 +49,7 @@ def eval_ders_basis_COO_format(degree, knotvector, knots):
 
 	return np.array(basis), np.array(indices_i), np.array(indices_j)
 
-def eval_ders_basis_sparse(degree, knotvector, knots):
+def eval_ders_basis_sparse(degree:int, knotvector:np.ndarray, knots:np.ndarray):
 	""" Evaluates B-spline functions and its first derivative at given knots.
 		It returns matrices as scipy CSR objects.
 	"""
@@ -57,40 +57,40 @@ def eval_ders_basis_sparse(degree, knotvector, knots):
 	basis_coo, indi_coo, indj_coo = eval_ders_basis_COO_format(degree, knotvector, knots)
 		
 	# Loop through the basis functions and derivatives
-	basis_list = []
-	for i in range(basis_coo.shape[1]):
-		# Create a sparse matrix for each basis function/derivative
-		basis_matrix = sp.coo_matrix(
+	basis_list = [
+		sp.coo_matrix(
 			(basis_coo[:, i], (indi_coo, indj_coo)),
 			shape=(nbctrlpts, len(knots))
-		).tocsr()
-		basis_list.append(basis_matrix)
-	
+		).tocsr() 
+		for i in range(basis_coo.shape[1])
+	]
+
 	return basis_list
 
 class quadrature_rule:
-	def __init__(self, degree, knotvector):
-		self.degree = degree
-		self.knotvector = knotvector
-		self.nbctrlpts = len(self.knotvector) - self.degree - 1
-		self._unique_kv = np.unique(self.knotvector)
-		self._nbel = len(self._unique_kv) - 1
 
-		self._coo_indices = None
-		self._coo_basis   = None
-		self._coo_weights = None
-		self.nbqp    = None
-		self.quadpts = None
-		self.basis   = None
-		self.weights = None
+	def __init__(self, degree, knotvector):
+		self.degree:int = degree
+		self.knotvector:np.ndarray = knotvector
+		self.nbctrlpts:int = len(self.knotvector) - self.degree - 1
+		self._unique_kv:np.ndarray = np.unique(self.knotvector)
+		self._nbel:int = len(self._unique_kv) - 1
+
+		self._coo_indices:np.ndarray = np.array([])
+		self._coo_basis:np.ndarray = np.array([])
+		self._coo_weigts:np.ndarray = np.array([])
+		self.quadpts:np.ndarray = np.array([])
+		self.basis:list = []
+		self.weights:list = []
+		self.nbqp:int = 0
 		return
 
-	def _set_quadrature_points(self, quadpts):
+	def _set_quadrature_points(self, quadpts:np.ndarray):
 		self.quadpts = quadpts
 		self.nbqp = len(quadpts)
 		return
 
-	def _set_coo_basis_weights(self, basis, weights, indices):
+	def _set_coo_basis_weights(self, basis:np.ndarray, weights:np.ndarray, indices:np.ndarray):
 		self._coo_indices = indices
 		self._coo_basis   = basis
 		self._coo_weights = weights
@@ -100,30 +100,41 @@ class quadrature_rule:
 		basis, weights = [], []
 		indi, indj = self._coo_indices
 		for i in range(np.size(self._coo_basis, axis=1)):
-			basis.append(sp.coo_matrix((self._coo_basis[:, i], (indi, indj)),
-							shape=(self.nbctrlpts, self.nbqp)).tocsr())
+			basis.append(
+				sp.coo_matrix(
+					(self._coo_basis[:, i], (indi, indj)),
+					shape=(self.nbctrlpts, self.nbqp)
+				).tocsr()
+			)
 
 		for i in range(np.size(self._coo_weights, axis=1)):
-			weights.append(sp.coo_matrix((self._coo_weights[:, i], (indi, indj)),
-								shape=(self.nbctrlpts, self.nbqp)).tocsr())
+			weights.append(
+				sp.coo_matrix(
+					(self._coo_weights[:, i], (indi, indj)),
+					shape=(self.nbctrlpts, self.nbqp)
+				).tocsr()
+			)
 		self.basis, self.weights = basis, weights
 		return
 
-	def get_sample_basis(self, knots_to_interp):
+	def get_sample_basis(self, knots_to_interp:np.ndarray):
 		return eval_ders_basis_sparse(self.degree, self.knotvector, knots_to_interp)
 
 class gauss_quadrature(quadrature_rule):
-	def __init__(self, degree, knotvector, quad_args:dict):
+
+	def __init__(self, degree:int, knotvector:np.ndarray, quad_args:dict):
 		super().__init__(degree, knotvector)
 		self._quadrature_type = str(quad_args.get('type', 'leg')).lower()
+		assert self._quadrature_type in ['leg', 'lob'], f"Unknown quadrature type: {self._quadrature_type}"
+
 		if self._quadrature_type == 'leg': # Legendre
-			self._order = self.degree + 1
+			self._order = quad_args.get('default_order', self.degree + 1)
 			self._table_function = legendre_table
 		elif self._quadrature_type == 'lob': # Lobatto
-			self._order = self.degree + 2
+			self._order = quad_args.get('default_order', self.degree + 2)
 			self._table_function = lobatto_table
-		else:
-			raise Warning('Not found')
+		
+		self._parametric_weights:np.ndarray = np.array([])
 		return
 
 	def _get_isoparametric_variables(self):
@@ -144,11 +155,10 @@ class gauss_quadrature(quadrature_rule):
 	def _compute_parametric_weights(self):
 		" Gets the weight of Gauss quadrature points in parametric space "
 		knots = self._unique_kv
-		parametric_weights = np.concatenate([
+		self._parametric_weights = np.concatenate([
 			0.5 * (knots[i + 1] - knots[i]) * self._isoparametric_weights
 			for i in range(self._nbel)
 		])
-		self._parametric_weights = parametric_weights
 		return
 
 	def _set_coo_basis_weights(self):
@@ -160,7 +170,7 @@ class gauss_quadrature(quadrature_rule):
 		weights[:, 3] = basis[:, 1] * self._parametric_weights[indj]
 		weights[:, 1] = weights[:, 0]
 		weights[:, 2] = weights[:, 3]
-		quadrature_rule._set_coo_basis_weights(self, basis, weights, [indi, indj])
+		super()._set_coo_basis_weights(self, basis, weights, [indi, indj])
 		return
 
 	def export_quadrature_rules(self):
@@ -173,11 +183,12 @@ class gauss_quadrature(quadrature_rule):
 
 class weighted_quadrature(quadrature_rule):
 
-	def __init__(self, degree, knotvector, quad_args: dict):
+	def __init__(self, degree:int, knotvector:np.ndarray, quad_args:dict):
 		super().__init__(degree, knotvector)
 		self._quadrature_type = quad_args.get('type', 1)
 		self._position_rule, default_extra_args = self._get_position_rule_and_defaults(self._quadrature_type)
 		self._extra_args = {**default_extra_args, **quad_args.get('rule_parameters', {})}
+		self._basis_shape:np.ndarray = np.array([])
 		return
 
 	def _get_position_rule_and_defaults(self, quadrature_type):
@@ -210,7 +221,7 @@ class weighted_quadrature(quadrature_rule):
 	def _internal_rule(self, s=2, r=4):
 		return self._generate_quadrature_points(s, r, include_boundaries=False)
 
-	def _generate_quadrature_points(self, s, r, include_boundaries):
+	def _generate_quadrature_points(self, s:int, r:int, include_boundaries:bool):
 		quadpts = np.array([])
 		knots = self._unique_kv
 
@@ -237,31 +248,38 @@ class weighted_quadrature(quadrature_rule):
 		quadpts.sort()
 		return quadpts
 
-	def _solve_linear_system(self, integral_shape, basis_shape, integral, basis):
-		nr_obj = basis_shape.shape[0]
-		nr_test = integral_shape.shape[0]
-		nc = basis.shape[1]
-		weights = np.zeros((nr_obj, nc))
-		for i in range(nr_obj):
+	def _solve_linear_system(self, 
+		integral_shape:np.ndarray, 
+		basis_shape:np.ndarray, 
+		integral:np.ndarray, 
+		basis:np.ndarray
+		):
+
+		weights = np.zeros((basis_shape.shape[0], basis.shape[1]))
+		for i in range(basis_shape.shape[0]):
 			Pmin, Pmax = basis_shape[i, :]
 			Fmin = np.argmax(integral_shape[:, i] > 0)
-			Fmax = nr_test - 1 - np.argmax(integral_shape[::-1, i] > 0)
-			weights[i, Pmin:Pmax+1] = np.ravel(np.linalg.lstsq(basis[Fmin:Fmax+1, Pmin:Pmax+1],
-												integral[Fmin:Fmax+1, i], rcond=None)[0])
+			Fmax = integral_shape.shape[0] - np.argmax(integral_shape[::-1, i] > 0)
+			weights[i, Pmin:Pmax+1] = np.ravel(
+				np.linalg.lstsq(
+					basis[Fmin:Fmax, Pmin:Pmax+1],
+					integral[Fmin:Fmax, i], rcond=None
+					)[0]
+			)
 		return weights
 
-	def _get_basis_shape(self, knots):
+	def _get_basis_shape(self, knots:np.ndarray):
 		" Return the shape of basis in WQ approach. "
 		B0shape = np.zeros((self.nbctrlpts, 2), dtype=int)
 		B1shape = np.zeros((self.nbctrlpts, 2), dtype=int)
-		knots   = np.atleast_1d(knots)
 
 		tableKVSpan = np.zeros((self._nbel, 2))
 		for i in range(self._nbel):
 			tableKVSpan[i, :] = [self._unique_kv[i], self._unique_kv[i+1]]
 		tablePointsOverKVSpan = np.zeros((self._nbel, 2), dtype=int)
 		for i in range(self._nbel):
-			left = self._unique_kv[i]; right = self._unique_kv[i+1]
+			left = self._unique_kv[i]
+			right = self._unique_kv[i+1]
 			boolean = (knots>=left)*(knots<=right)
 			tablePointsOverKVSpan[i, 0] = np.nonzero(boolean)[0][0]
 			tablePointsOverKVSpan[i, 1] = np.nonzero(boolean)[0][-1]
@@ -331,7 +349,7 @@ class weighted_quadrature(quadrature_rule):
 		B1shape[self.nbctrlpts-2, 1] = np.nonzero(boolean)[0][-1] # Just the right
 		return [B0shape, B1shape]
 
-	def _compute_parametric_weights(self, method):
+	def _compute_parametric_weights(self, method:str):
 		" Computes the weights at quadrature points in WQ approach using specified trial space. "
 
 		# Space S^p_r
@@ -363,44 +381,47 @@ class weighted_quadrature(quadrature_rule):
 		Bcgg_p0_int[np.where(np.abs(B0cgg_p0.toarray())>1e-8)] = 1
 		Bcgg_p1_int[np.where(np.abs(B0cgg_p1.toarray())>1e-8)] = 1
 
-		tmp = []
+		list_weights = []
 		if method == '1':
 			# Computation of W00
 			Ishape = Bcgg_p0_int @ Bcgg_p0_int.T
 			integral = B0cgg_p0 @ sp.diags(gauss_p0._parametric_weights) @ B0cgg_p0.T
-			tmp.append(self._solve_linear_system(Ishape, self._basis_shape[0], integral.toarray(), B0wq_p0.toarray()))
+			list_weights.append(
+				self._solve_linear_system(Ishape, self._basis_shape[0], integral.toarray(), B0wq_p0.toarray())
+			)
 
-			# Computation of W01
-			Ishape = Bcgg_p1_int @ Bcgg_p0_int.T
-			integral = B0cgg_p1 @ sp.diags(gauss_p0._parametric_weights) @ B0cgg_p0.T
-			tmp.insert(1, self._solve_linear_system(Ishape, self._basis_shape[0], integral.toarray(), B0wq_p1.toarray()))
+		# Computation of W01 for method 1 or W00 for method 2
+		Ishape = Bcgg_p1_int @ Bcgg_p0_int.T
+		integral = B0cgg_p1 @ sp.diags(gauss_p0._parametric_weights) @ B0cgg_p0.T
+		list_weights.append(
+			self._solve_linear_system(Ishape, self._basis_shape[0], integral.toarray(), B0wq_p1.toarray())
+		)
 
+		if method == '1':
 			# Computation of W10
 			Ishape = Bcgg_p0_int @ Bcgg_p0_int.T
 			integral = B0cgg_p0 @ sp.diags(gauss_p0._parametric_weights) @ B1cgg_p0.T
-			tmp.insert(2, self._solve_linear_system(Ishape, self._basis_shape[1], integral.toarray(), B0wq_p0.toarray()))
-
-		else:
-			# Computation of W00
-			Ishape = Bcgg_p1_int @ Bcgg_p0_int.T
-			integral = B0cgg_p1 @ sp.diags(gauss_p0._parametric_weights) @ B0cgg_p0.T
-			tmp.append(self._solve_linear_system(Ishape, self._basis_shape[0], integral.toarray(), B0wq_p1.toarray()))
+			list_weights.append(
+				self._solve_linear_system(Ishape, self._basis_shape[1], integral.toarray(), B0wq_p0.toarray())
+			)
 
 		# Computation of W11
 		Ishape = Bcgg_p1_int @ Bcgg_p0_int.T
 		integral = B0cgg_p1 @ sp.diags(gauss_p0._parametric_weights) @ B1cgg_p0.T
-		tmp.append(self._solve_linear_system(Ishape, self._basis_shape[1], integral.toarray(), B0wq_p1.toarray()))
+		list_weights.append(
+			self._solve_linear_system(Ishape, self._basis_shape[1], integral.toarray(), B0wq_p1.toarray())
+		)
 
 		for idx, (i, j) in enumerate(zip(indi_coo, indj_coo)):
-			if method == '1':
-				weights_csr[idx, :] = [tmp[0][i, j], tmp[1][i, j], tmp[2][i, j], tmp[3][i, j]]
-			else:
-				weights_csr[idx, :] = [tmp[0][i, j], tmp[0][i, j], tmp[1][i, j], tmp[1][i, j]]
+			list_of_indices = [0, 1, 2, 3] if method == '1' else [0, 0, 1, 1]
+			weights_csr[idx, :] = [
+				list_weights[list_of_indices[k]][i, j] for k in range(len(list_of_indices))
+			]
 
 		return basis_csr, weights_csr, indi_coo, indj_coo
 
 	def _set_coo_basis_weights(self):
-		method = '1' if self._quadrature_type in [1, 3] and self.degree > 1 else '2'
+		method = '2' if self._quadrature_type in [2, 3] or self.degree == 1 else '1'
 		basis, weights, indi, indj = self._compute_parametric_weights(method=method)
 		super()._set_coo_basis_weights(basis, weights, [indi, indj])
 		return
@@ -411,7 +432,7 @@ class weighted_quadrature(quadrature_rule):
 		super()._assemble_csr_basis_weights()
 		return
 
-def legendre_table(order):
+def legendre_table(order:int):
 	" Computes Gauss-Legendre weights and positions in isoparametric space for a given degree "
 	if order == 1:
 		pos = [0.0]
@@ -465,7 +486,7 @@ def legendre_table(order):
 	else: raise Warning('Not degree found')
 	return np.array(pos), np.array(wgt)
 
-def lobatto_table(order):
+def lobatto_table(order:int):
 	" Computes Gauss-Lobatto weights and positions in isoparametric space for a given degree "
 	if order == 2:
 		pos = [-1.0, 1.0]
