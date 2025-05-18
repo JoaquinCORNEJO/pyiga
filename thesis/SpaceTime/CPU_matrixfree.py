@@ -111,7 +111,7 @@ ax.semilogy([], [], color='k', **CONFIGLINE_WQ, label='MF-WQ')
 
 ax.minorticks_off()
 ax.legend(ncol=2, bbox_to_anchor=(0.5, 1.2), loc='upper center')
-ax.set_xlabel(r'Degree $p$')
+ax.set_xlabel('Degree')
 ax.set_ylabel('CPU time (s) of matrix-vector product')
 ax.set_xlim([0, 10])
 ax.set_ylim([1e-1, 1e3])

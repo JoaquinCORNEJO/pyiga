@@ -121,7 +121,7 @@ if RUNSIMU:
 
 from mpltools import annotation
 IVP_method_list = ['BDF1', 'BDF2', 'BDF3', 'alpha']
-fig, ax = plt.subplots(figsize=(5.5, 5.5))
+fig, ax = plt.subplots(figsize=(5, 5))
 for i, IVP_method in enumerate(IVP_method_list):
 	label = 'Crank-Nicolson' if IVP_method == 'alpha' else f'BDF {IVP_method[-1]}'
 	if PLOTRELATIVE: error_list = np.loadtxt(f"{FOLDER2DATA}relerrorstag_inc_{IVP_method}.dat")
@@ -146,7 +146,7 @@ else:
 
 ax.set_xlabel('Number of time-steps')
 ax.set_xlim(left=2, right=600)
-ax.legend(ncol=2, bbox_to_anchor=(0.5, 1.2), loc='upper center')
-# ax.legend(loc='lower left')
+# ax.legend(ncol=2, bbox_to_anchor=(0.5, 1.2), loc='upper center')
+ax.legend(loc='lower left')
 fig.tight_layout()
 fig.savefig(f"{FOLDER2RESU}stagnation_error_inc.pdf")

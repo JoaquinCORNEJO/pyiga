@@ -81,7 +81,7 @@ def plot_vertical_lines(x, y, ax=None, color='k'):
 	return
 
 # Set global variables
-FIGCASE = 1
+FIGCASE = 7
 EXTENSION = '.pdf'
 
 if FIGCASE == 0: # B-spline curve
@@ -402,5 +402,43 @@ elif FIGCASE == 6: # Weights W00 and W11
 
 	for ders_idx in [0, 1]:
 		case6(FOLDER2RESU, EXTENSION, ders_idx=ders_idx)
+	
+elif FIGCASE == 7:
+	
+	def case7(folder, extension):
+
+		fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 2))
+
+		# Set filename
+		filename = f"{folder}Bandwitdh{extension}"
+
+		for degree, color, label in zip([5, 1], ['tab:green', 'tab:blue'], ['Quintic', 'Linear']):
+			nbel = 8
+			knotvector = create_uniform_knotvector(degree, nbel)
+			quadrature = weighted_quadrature(degree, knotvector, {'type': 2})
+			quadrature.export_quadrature_rules()
+			knots = np.linspace(0, 1, 301)
+			basis = quadrature.get_sample_basis(knots)[0].toarray()
+			basis_idx = int(np.floor((nbel+degree)/2))
+			basis_toplot = basis[basis_idx, :]
+			index_toplot = np.where(basis_toplot > 0)[0]
+			knots_toplot = knots[index_toplot[0]-1:index_toplot[-1]+2]
+			basis_toplot = basis_toplot[index_toplot[0]-1:index_toplot[-1]+2]
+
+			ax.plot(knots_toplot, basis_toplot, color=color, linewidth=2)
+			ax.fill_between(x=knots, y1=basis[basis_idx, :], color=color, alpha=0.2, label=f'{label} basis')
+
+		ax.plot(quadrature._unique_kv, np.zeros_like(quadrature._unique_kv), 
+				color='k', marker='s', linestyle='None', markersize=3, label='Knots')
+		
+		ax.grid(None)
+		ax.axis('off')
+		ax.legend()
+		fig.tight_layout()
+		fig.savefig(filename, dpi=300)
+		return
+
+	case7(FOLDER2RESU, EXTENSION)
+
 
 else: raise Warning('Case unkwnon')

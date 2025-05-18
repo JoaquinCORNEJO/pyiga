@@ -2,7 +2,7 @@ from thesis.StateOfArt.__init__ import *
 import pandas as pd
 
 EXTENSION = '.pdf'
-FIGCASE = 2
+FIGCASE = 0
 
 if FIGCASE == 0:
 
@@ -32,7 +32,7 @@ if FIGCASE == 0:
 	ax.set_xlim([0, 10])
 	ax.set_ylim([1e0, 1e6])
 	ax.set_ylabel('Setup time (s)')
-	ax.set_xlabel('Polynomial degree')
+	ax.set_xlabel('Degree')
 	fig.tight_layout()
 	fig.savefig(filename_fig)
 

@@ -106,9 +106,12 @@ nbel_time = 6
 time_span = np.linspace(0, 1, nbel_time+1)
 
 spacetime_patch = singlepatch(
-	mygeomdl({'name':'square', 
-			'degree':[degree, 1], 
-			'nbel':[int(2**cuts), nbel_time]}
+	mygeomdl({
+		'name':'square', 
+		'degree':[degree, 1], 
+		'nbel':[int(2**cuts), nbel_time],
+		'geo_parameters':{'XY': np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 0.5], [0.0, 0.5]])}
+		}
 			).export_geometry(), 
 	quad_args={'quadrule':'gs', 'type':'leg'}
 )
@@ -124,7 +127,7 @@ spacetime_patch = singlepatch(
 
 # for i in range(10): 
 # 	filepath = vtk2png(filename=f'spacetime_{i}', folder=FOLDER2RESU, title='Temperature', 
-# 				camera_position='xy', position_y=0.1, clim=[-100, 100],)
+# 				camera_position='xy', position_y=0.2, clim=[-100, 100],)
 
 
 # problem = simulate_incremental(degree, cuts, nbel_time)[0]
@@ -141,7 +144,7 @@ spacetime_patch = singlepatch(
 # 										sample_size=101)
 # 	index += 1
 
-for i in range(0, 19): 
+for i in range(19, 30): 
 	filepath = vtk2png(filename=f'inctime_{i}', folder=FOLDER2RESU, title='Temperature', 
-				camera_position='xy', position_y=0.1, clim=[-100, 100])
+				camera_position='xy', position_y=0.2, clim=[-100, 100])
 

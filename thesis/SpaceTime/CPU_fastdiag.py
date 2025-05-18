@@ -79,7 +79,7 @@ slope = round(np.polyfit(np.log(nbelList**4), np.log(time_elapsed[:, 2]), 1)[0],
 annotation.slope_marker((nbelList[-2]**4,  time_elapsed[-2, 2]), slope,
 				poly_kwargs={'facecolor': (0.73, 0.8, 1)}, ax=ax)
 
-cbar.set_label('Degree '+r'$p_s=p_t$')
+cbar.set_label(r'Degree ($p_s=p_t$)')
 tick_locs = 1+(np.arange(len(deg_list)) + 0.5)*(len(deg_list)-1)/len(deg_list)
 cbar.set_ticks(tick_locs)
 cbar.set_ticklabels(np.array(deg_list, dtype=int))
