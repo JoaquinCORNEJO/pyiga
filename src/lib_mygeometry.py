@@ -1,7 +1,8 @@
 from .__init__ import *
 from .lib_quadrules import gauss_quadrature
+from typing import Union
 
-def create_uniform_knotvector(degree, nbel, multiplicity=1):
+def create_uniform_knotvector(degree:int, nbel:int, multiplicity:int=1):
 	knotvector = np.concatenate((
 		np.zeros(degree + 1),
 		np.repeat(np.linspace(0., 1., nbel + 1)[1:-1], multiplicity),
@@ -9,40 +10,62 @@ def create_uniform_knotvector(degree, nbel, multiplicity=1):
 	))
 	return knotvector
 
-def make_quarter_circle(degree, nbel):
+def make_quarter_circle(degree:int, nbel:int):
+	# Create a uniform knot vector for the given degree and number of elements
 	knotvector = create_uniform_knotvector(degree, nbel)
+	
+	# Perform Gaussian quadrature on the knot vector
 	quadrature = gauss_quadrature(degree, knotvector, quad_args={'type': 'leg'})
 	quadrature.export_quadrature_rules()
+	
+	# Compute the matrix using the weights and basis functions from the quadrature
 	matrix = quadrature.weights[0] @ quadrature.basis[0].T
-	vector = quadrature.weights[0] @ np.cos(np.pi/2*quadrature.quadpts)
-	Ann = matrix[1:-1, 1:-1]; And = matrix[1:-1, [0, -1]]; bn = vector[1:-1]
-	u = np.zeros_like(vector); u[0] = 1.0; ud = u[[0, -1]]
-	u[1:-1] = scsplin.spsolve(Ann, bn - And@ud)
+	
+	# Compute the vector using the weights and quadrature points, applying a cosine function
+	vector = quadrature.weights[0] @ np.cos(np.pi/2 * quadrature.quadpts)
+
+	# Extract submatrices and vectors
+	Ann = matrix[1:-1, 1:-1]
+	And = matrix[1:-1, [0, -1]]
+	bn = vector[1:-1]
+
+	# Initialize solution vector
+	u = np.zeros_like(vector)
+	u[0] = 1.0  # Boundary condition
+	ud = u[[0, -1]]  # Dirichlet boundary values
+
+	# Solve the linear system for the interior points
+	u[1:-1] = scsplin.spsolve(Ann, bn - And @ ud)
+
+	# Construct control points
 	ctrlpts = np.zeros((len(vector), 2))
-	ctrlpts[:, 0] = u; ctrlpts[:, 1] = np.flip(u)
+	ctrlpts[:, 0] = u
+	ctrlpts[:, 1] = np.flip(u)
+
 	return knotvector, ctrlpts
 
-def make_line(degree, nbel):
+def make_line(degree:int, nbel:int):
 	knotvector = create_uniform_knotvector(degree, nbel)
 	nbctrlpts = len(knotvector) - degree - 1
-	ctrlpts = np.array([sum(knotvector[i+j] for j in range(degree))/degree
-				for i in range(1, nbctrlpts+1)])
+	ctrlpts = np.array([
+		sum(knotvector[i+j] for j in range(degree))/degree
+		for i in range(1, nbctrlpts+1)
+	])
 	return knotvector, ctrlpts
 
 class mygeomdl():
 	def __init__(self, geo_args:dict):
-		self._ndim = None
-		self._name = str(geo_args.get('name', '')).lower()
-		self._degree = geo_args.get('degree')
-		if np.isscalar(self._degree): self._degree = np.array([self._degree, self._degree, self._degree])
-		self._nbel = geo_args.get('nbel')
-		if np.isscalar(self._nbel): self._nbel = np.array([self._nbel, self._nbel, self._nbel])
-		self._extra_args = dict(geo_args.get('geo_parameters', {}))
+		self._ndim:int = 0
+		self._name:str = str(geo_args.get('name', '')).lower()
+		self._degree:Union[int, np.ndarray] = geo_args.get('degree')
+		if np.isscalar(self._degree): self._degree = np.array([self._degree]*3)
+		self._nbel:Union[int, np.ndarray] = geo_args.get('nbel')
+		if np.isscalar(self._nbel): self._nbel = np.array([self._nbel]*3)
+		self._extra_args:dict = geo_args.get('geo_parameters', {})
 		assert isinstance(self._extra_args, dict), 'Extra arguments should be dictionary'
-		return
 
 	def export_geometry(self):
-		name = self._name
+
 		geometry_map = {
 			'line': (1, {'L': 1.0}, self._create_line),
 			'ln': (1, {'L': 1.0}, self._create_line),
@@ -62,24 +85,22 @@ class mygeomdl():
 			'vb': (3, {'XY': np.array([[0.0, -7.5], [6.0, -2.5], [6.0, 2.5], [0.0, 7.5]]), 'height': 1.0}, self._create_prism)
 		}
 
-		if name not in geometry_map:
+		if self._name not in geometry_map:
 			raise Warning('Not developed in this library')
 
-		ndim, default_extra_args, func = geometry_map[name]
+		ndim, default_extra_args, func = geometry_map[self._name]
 		self._ndim = ndim
 		self._extra_args = {**default_extra_args, **self._extra_args}
 		self._degree = self._degree[:self._ndim]
 		self._nbel = self._nbel[:self._ndim]
-		part = func(*self._degree, *self._nbel, args=self._extra_args)
-
-		return part
+		return func(*self._degree, *self._nbel, args=self._extra_args)
 
 	# ----------------
 	# CREATE GEOMETRY
 	# ----------------
 
 	# 1D
-	def _create_line(self, degree_u, nbel_u, args:dict):
+	def _create_line(self, degree_u:int, nbel_u:int, args:dict):
 		" Creates a line segment "
 
 		length = args.get('L')
@@ -96,7 +117,7 @@ class mygeomdl():
 		return obj
 
 	# 2D
-	def _create_quarter_annulus(self, degree_u, degree_v, nbel_u, nbel_v, args:dict):
+	def _create_quarter_annulus(self, degree_u:int, degree_v:int, nbel_u:int, nbel_v:int, args:dict):
 		" Creates a quarter of a ring (or annulus) "
 
 		Rin, Rex = args.get('Rin'), args.get('Rex')
@@ -124,7 +145,7 @@ class mygeomdl():
 
 		return obj
 
-	def _create_quadrilateral(self, degree_u, degree_v, nbel_u, nbel_v, args:dict):
+	def _create_quadrilateral(self, degree_u:int, degree_v:int, nbel_u:int, nbel_v:int, args:dict):
 		" Creates a quadrilateral given coordinates in counterclockwise direction "
 
 		xy = args.get('XY')
@@ -162,7 +183,7 @@ class mygeomdl():
 		return obj
 
 	# 3D
-	def _create_parallelepiped(self, degree_u, degree_v, degree_w, nbel_u, nbel_v, nbel_w, args:dict):
+	def _create_parallelepiped(self, degree_u:int, degree_v:int, degree_w:int, nbel_u:int, nbel_v:int, nbel_w:int, args:dict):
 		" Creates a brick (or parallelepiped) "
 
 		Lx, Ly, Lz = args.get('Lx'), args.get('Ly'), args.get('Lz')
@@ -191,7 +212,7 @@ class mygeomdl():
 
 		return obj
 
-	def _create_thick_ring(self, degree_u, degree_v, degree_w, nbel_u, nbel_v, nbel_w, args:dict):
+	def _create_thick_ring(self, degree_u:int, degree_v:int, degree_w:int, nbel_u:int, nbel_v:int, nbel_w:int, args:dict):
 		" Creates a thick ring (quarter of annulus extruded) "
 
 		Rin, Rex, height = args.get('Rin'), args.get('Rex'), args.get('height')
@@ -228,7 +249,7 @@ class mygeomdl():
 
 		return obj
 
-	def _create_rotated_quarter_annulus(self, degree_u, degree_v, degree_w, nbel_u, nbel_v, nbel_w, args:dict):
+	def _create_rotated_quarter_annulus(self, degree_u:int, degree_v:int, degree_w:int, nbel_u:int, nbel_v:int, nbel_w:int, args:dict):
 		" Creates a quarter of a ring rotated (or revolted) "
 
 		Rin, Rex, exc =  args.get('Rin'), args.get('Rex'), args.get('exc')
@@ -265,7 +286,7 @@ class mygeomdl():
 
 		return obj
 
-	def _create_prism(self, degree_u, degree_v, degree_w, nbel_u, nbel_v, nbel_w, args:dict):
+	def _create_prism(self, degree_u:int, degree_v:int, degree_w:int, nbel_u:int, nbel_v:int, nbel_w:int, args:dict):
 		""" Creates a prism using a quadrilateral as a base.
 		The quadrilateral coordinates are given in counterclockwise direction """
 

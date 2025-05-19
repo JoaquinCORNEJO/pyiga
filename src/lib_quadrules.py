@@ -83,7 +83,6 @@ class quadrature_rule:
 		self.basis:list = []
 		self.weights:list = []
 		self.nbqp:int = 0
-		return
 
 	def _set_quadrature_points(self, quadpts:np.ndarray):
 		self.quadpts = quadpts
@@ -189,7 +188,6 @@ class weighted_quadrature(quadrature_rule):
 		self._position_rule, default_extra_args = self._get_position_rule_and_defaults(self._quadrature_type)
 		self._extra_args = {**default_extra_args, **quad_args.get('rule_parameters', {})}
 		self._basis_shape:np.ndarray = np.array([])
-		return
 
 	def _get_position_rule_and_defaults(self, quadrature_type):
 		if quadrature_type == 1:

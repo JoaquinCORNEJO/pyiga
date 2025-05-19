@@ -1,4 +1,5 @@
 from .__init__ import *
+from typing import Callable
 
 def clean_dirichlet(array:np.ndarray, idx_nodes:list):
 	""" 
@@ -35,9 +36,8 @@ class solver():
 		self._tolerance = tolerance
 		self._Pfun = lambda x: x
 		self._safeguard = 1.e-14
-		return
 	
-	def eigs(self, N:int, Afun:function, Bfun:function=None, Pfun:function=None, k:int=6, which:str='LM'):
+	def eigs(self, N:int, Afun:Callable, Bfun:Callable=None, Pfun:Callable=None, k:int=6, which:str='LM'):
 		"""
 		Compute the eigenvalues and eigenvectors of a linear operator.
 
@@ -77,7 +77,7 @@ class solver():
 		eigvecs_sorted = eigvecs[:, sorted_indices]
 		return eigvals_sorted, eigvecs_sorted
 	
-	def CG(self, Afun:function, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
+	def CG(self, Afun:Callable, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
 		"""
 		Conjugate Gradient (CG) solver for solving the linear system Ax = b.
 
@@ -142,7 +142,7 @@ class solver():
 
 		return {'sol': x, 'res': res}
 	
-	def BiCGSTAB(self, Afun:function, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
+	def BiCGSTAB(self, Afun:Callable, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
 		"""
 		BiConjugate Gradient Stabilized (BiCGSTAB) method for solving linear systems.
 
@@ -225,7 +225,7 @@ class solver():
 
 		return {'sol': x, 'res': res}
 	
-	def GMRES(self, Afun:function, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
+	def GMRES(self, Afun:Callable, b:np.ndarray, Pfun=None, dotfun=None, cleanfun=None, dod=None, args={}):
 		"""
 		Generalized Minimal Residual Method (GMRES) for solving a linear system of equations.
 		Parameters:
