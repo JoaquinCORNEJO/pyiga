@@ -58,7 +58,7 @@ wq1_plot = {"marker": "o", "linestyle": "--", "markersize": 4}
 wq2_plot = {"marker": "x", "linestyle": ":", "markersize": 4}
 
 figname = RESULT_FOLDER + "convergence_steady_1d"
-for quadrule, quadtype, plotpars in zip(
+for quadrule, quadtype, plotops in zip(
     ["gs", "wq", "wq"], ["leg", 1, 2], [gauss_plot, wq1_plot, wq2_plot]
 ):
     quad_args = {"quadrule": quadrule, "type": quadtype}
@@ -80,10 +80,8 @@ for quadrule, quadtype, plotpars in zip(
             relerror_list,
             label=label,
             color=color,
-            marker=plotpars["marker"],
             markerfacecolor="w",
-            markersize=plotpars["markersize"],
-            linestyle=plotpars["linestyle"],
+            **plotops,
         )
         fig.savefig(figname)
 
@@ -91,20 +89,16 @@ ax.loglog(
     [],
     [],
     color="k",
-    marker=wq1_plot["marker"],
     markerfacecolor="w",
-    markersize=wq1_plot["markersize"],
-    linestyle=wq1_plot["linestyle"],
+    **wq1_plot,
     label="IGA-WQ 1",
 )
 ax.loglog(
     [],
     [],
     color="k",
-    marker=wq2_plot["marker"],
     markerfacecolor="w",
-    markersize=wq2_plot["markersize"],
-    linestyle=wq2_plot["linestyle"],
+    **wq2_plot,
     label="IGA-WQ 2",
 )
 

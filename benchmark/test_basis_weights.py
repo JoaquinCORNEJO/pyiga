@@ -7,6 +7,7 @@ def relative_error(array_interp: sp.csr_matrix, array_th: sp.csr_matrix):
     error = array_th - array_interp
     return np.linalg.norm(error.toarray()) / np.linalg.norm(array_th.toarray())
 
+
 # EXAMPLE 1
 degree, nbel = 3, 4
 knotvector = create_uniform_knotvector(degree, nbel)

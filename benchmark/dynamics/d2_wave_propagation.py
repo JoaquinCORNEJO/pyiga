@@ -7,7 +7,7 @@ from src.single_patch.lib_job_mechanical import mechanical_problem
 from time import time
 
 # Create subfolder
-subfolder = RESULT_FOLDER + "/dyn2d/"
+subfolder = f"{RESULT_FOLDER}/dyn2d/"
 if not os.path.isdir(subfolder):
     os.mkdir(subfolder)
 

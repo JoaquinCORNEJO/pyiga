@@ -21,7 +21,7 @@ NBSTEPS = 21
 geometry = mygeomdl(
     {"name": "line", "degree": DEGREE, "nbel": NBEL, "geo_parameters": {"L": LENGTH}}
 ).export_geometry()
-patch = singlepatch(geometry, {"quadrule": "wq", "type": 3})
+patch = singlepatch(geometry, {"quadrule": "wq", "type": 2})
 
 # Define plasticity model
 material = J2plasticity1d(

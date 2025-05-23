@@ -29,15 +29,17 @@ def increase_multiplicity_to_knotvector(
     """
     Returns an open knot vector with higher multiplicity.
     """
-    kv_out = list([knotvector[0]] * (degree + 1))
-    kv_unique = np.unique(knotvector)[1:-1]
+    assert len(knotvector) >= 2 * (
+        degree + 1
+    ), "Knot vector must contain at least 2*(degree + 1) knots"
+    kv_out = list(knotvector[: degree + 1]) + list(knotvector[-(degree + 1) :])
+    kv_unique = np.unique(knotvector[degree + 1 : -(degree + 1)])
 
     for knot in kv_unique:
         m = find_multiplicity(knotvector, knot) + repeat
         kv_out.extend([knot] * m)
 
-    kv_out.extend([knotvector[-1]] * (degree + 1))
-    return np.array(kv_out)
+    return np.sort(np.array(kv_out))
 
 
 def eval_ders_basis_COO_format(
@@ -358,12 +360,12 @@ class weighted_quadrature(quadrature_rule):
         "Computes the weights at quadrature points in WQ approach using specified trial space."
 
         # Test space
-        gauss: gauss_quadrature = gauss_quadrature(
+        gauss_test: gauss_quadrature = gauss_quadrature(
             self.degree, self.knotvector, {"type": "leg"}
         )
-        gauss.export_quadrature_rules()
-        B0cgg_test = gauss.basis[0]
-        W0cgg_test, _, W1cgg_test, _ = gauss.weights
+        gauss_test.export_quadrature_rules()
+        B0cgg_test = gauss_test.basis[0]
+        W0cgg_test, _, W1cgg_test, _ = gauss_test.weights
         basis_coo, indi_coo, indj_coo = eval_ders_basis_COO_format(
             self.degree, self.knotvector, self.quadpts
         )
@@ -386,7 +388,7 @@ class weighted_quadrature(quadrature_rule):
                 1, degree_target, self.knotvector
             )
         B0cgg_target: sp.csr_matrix = eval_ders_basis_sparse(
-            degree_target, knotvector_target, gauss.quadpts
+            degree_target, knotvector_target, gauss_test.quadpts
         )[0]
         B0wq_target: sp.csr_matrix = eval_ders_basis_sparse(
             degree_target, knotvector_target, self.quadpts
@@ -622,6 +624,33 @@ def legendre_table(order: int) -> Tuple[np.ndarray, np.ndarray]:
             0.219_086_362_515_9820,
             0.149_451_349_150_5806,
             0.066_671_344_308_6881,
+        ]
+    elif order == 11:
+        pos = [
+            -0.978_228_658_146_0570,
+            -0.887_062_599_768_0953,
+            -0.730_152_005_574_0494,
+            -0.519_096_129_206_8118,
+            -0.269_543_155_952_3450,
+            0.0,
+            0.269_543_155_952_3450,
+            0.519_096_129_206_8118,
+            0.730_152_005_574_0494,
+            0.887_062_599_768_0953,
+            0.978_228_658_146_0570,
+        ]
+        wgt = [
+            0.055_668_567_116_1737,
+            0.125_580_369_464_9046,
+            0.186_290_210_927_7343,
+            0.233_193_764_591_9905,
+            0.262_804_544_510_2467,
+            0.272_925_086_777_9006,
+            0.262_804_544_510_2467,
+            0.233_193_764_591_9905,
+            0.186_290_210_927_7343,
+            0.125_580_369_464_9046,
+            0.055_668_567_116_1737,
         ]
     else:
         raise Warning("Not degree found")
