@@ -89,14 +89,11 @@ def solve_optimization_problem(
     Z: np.ndarray,
     A: np.ndarray,
     B: np.ndarray,
-    A_mask: np.ndarray,
-    B_mask: np.ndarray,
 ) -> np.ndarray:
     """
     Solves the optimization problem:
         minimize (1/2) * ||diag(Z_i:)^{-1} w||^2_2
-        subject to A @ w = b_:i
-    while ignoring variables where Z_i: < threshold.
+        subject to A @ w = B_i:
 
     Parameters:
         Z (np.ndarray): Coefficient matrix of size (n, m,).
@@ -107,14 +104,6 @@ def solve_optimization_problem(
     Returns:
         np.ndarray: Solution vector w of size (n, m,).
     """
-
-    def find_bandwith(array: np.ndarray) -> np.ndarray:
-        if not np.any(np.abs(array) > 0):
-            return None  # All values are zero
-        start = np.argmax(np.abs(array) > 0)
-        end = len(array) - np.argmax((np.abs(array) > 0)[::-1])
-        return np.arange(start, end, dtype=int)
-
     assert B.shape[0] == Z.shape[0], "No. columns in b must match the no. rows in z"
     assert B.shape[1] == A.shape[0], "b and A must have compatible dimensions"
     assert A.shape[1] == Z.shape[1], "A and Z must have compatible dimensions"
@@ -122,34 +111,9 @@ def solve_optimization_problem(
 
     for ii, (zz, bb) in enumerate(zip(Z, B)):
 
-        # Compute new matrix A
-        aa = A @ np.diag(zz)
-
-        # Check zeros in row
-        row_mask = find_bandwith(B_mask[ii])
-        if row_mask is None:
-            raise ValueError(
-                "All values of b are below the threshold. No valid variables."
-            )
-        aa_row_filtered = aa[row_mask]
-        bb_row_filtered = bb[row_mask]
-
-        # Check zeros in column
-        col_mask = find_bandwith(A_mask[ii])
-        if col_mask is None:
-            raise ValueError(
-                "All values of A are below the threshold. No valid variables."
-            )
-        aa_total_filtered: np.ndarray = aa_row_filtered[:, col_mask]
-
-        # Solve KKT system
-        solution = (
-            np.diag(zz[col_mask])
-            @ np.linalg.lstsq(aa_total_filtered, bb_row_filtered, rcond=None)[0]
+        solution_all[ii, :] = (
+            np.diag(zz) @ np.linalg.lstsq(A @ np.diag(zz), bb, rcond=None)[0]
         )
-
-        # Reconstruct full solution
-        solution_all[ii, col_mask] = solution
 
     return solution_all
 
@@ -438,33 +402,21 @@ class weighted_quadrature(quadrature_rule):
         if method == 1:
             # Computation of W00
             integral: sp.csr_matrix = W0cgg_test @ B0cgg_test.T
-            A_mask: sp.csr_matrix = B0wq_test.copy()
-            B_mask: sp.csr_matrix = integral.copy()
-            A_mask.data[:] = 1.0
-            B_mask.data[:] = 1.0
             list_weights.append(
                 solve_optimization_problem(
                     Z=regularization.toarray(),
                     A=B0wq_test.toarray(),
                     B=integral.toarray(),
-                    A_mask=A_mask.toarray(),
-                    B_mask=B_mask.toarray(),
                 )
             )
 
         # Computation of W01 for method 1 or W0 for method 2
         integral: sp.csr_matrix = W0cgg_test @ B0cgg_target.T
-        A_mask: sp.csr_matrix = B0wq_test.copy()
-        B_mask: sp.csr_matrix = integral.copy()
-        A_mask.data[:] = 1.0
-        B_mask.data[:] = 1.0
         list_weights.append(
             solve_optimization_problem(
                 Z=regularization.toarray(),
                 A=B0wq_target.toarray(),
                 B=integral.toarray(),
-                A_mask=A_mask.toarray(),
-                B_mask=B_mask.toarray(),
             )
         )
 
@@ -472,33 +424,21 @@ class weighted_quadrature(quadrature_rule):
         if method == 1:
             # Computation of W10
             integral: sp.csr_matrix = W1cgg_test @ B0cgg_test.T
-            A_mask: sp.csr_matrix = B0wq_test.copy()
-            B_mask: sp.csr_matrix = integral.copy()
-            A_mask.data[:] = 1.0
-            B_mask.data[:] = 1.0
             list_weights.append(
                 solve_optimization_problem(
                     Z=regularization.toarray(),
                     A=B0wq_test.toarray(),
                     B=integral.toarray(),
-                    A_mask=A_mask.toarray(),
-                    B_mask=B_mask.toarray(),
                 )
             )
 
         # Computation of W11 for method 1 or W1 for method 2
         integral: sp.csr_matrix = W1cgg_test @ B0cgg_target.T
-        A_mask: sp.csr_matrix = B0wq_test.copy()
-        B_mask: sp.csr_matrix = integral.copy()
-        A_mask.data[:] = 1.0
-        B_mask.data[:] = 1.0
         list_weights.append(
             solve_optimization_problem(
                 Z=regularization.toarray(),
                 A=B0wq_target.toarray(),
                 B=integral.toarray(),
-                A_mask=A_mask.toarray(),
-                B_mask=B_mask.toarray(),
             )
         )
 
