@@ -1,7 +1,6 @@
 results/
 __pycache__/
 data/
-thesis/
 *.pdf
 *.png
 *.ods

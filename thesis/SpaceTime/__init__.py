@@ -1,9 +1,11 @@
 from src.__init__ import *
 
-FOLDER2RESU = os.path.dirname(os.path.realpath(__file__)) + '/results/'
-FOLDER2DATA = os.path.dirname(os.path.realpath(__file__)) + '/data/'
-if not os.path.isdir(FOLDER2RESU): os.mkdir(FOLDER2RESU)
-if not os.path.isdir(FOLDER2DATA): os.mkdir(FOLDER2DATA)
+FOLDER2RESU = os.path.dirname(os.path.realpath(__file__)) + "/results/"
+FOLDER2DATA = os.path.dirname(os.path.realpath(__file__)) + "/data/"
+if not os.path.isdir(FOLDER2RESU):
+    os.mkdir(FOLDER2RESU)
+if not os.path.isdir(FOLDER2DATA):
+    os.mkdir(FOLDER2DATA)
 
 MARKERLIST = ["o", "v", "s", "X", "+", "p", "*"]
 COLORLIST = [
@@ -29,7 +31,27 @@ COLORLIST = [
     "#9EDAE5",
 ]
 
-CONFIGLINE_IGA = {"marker": "s", "linestyle": "-", "markersize": 10, "markerfacecolor":"w"}
-CONFIGLINE_WQ = {"marker": "o", "linestyle": "--", "markersize": 6, "markerfacecolor":None}
-CONFIGLINE_INC = {"marker": "d", "linestyle": "-.", "markersize": 6, "markerfacecolor":None}
-CONFIGLINE_BDF = {"marker": "+", "linestyle": ":", "markersize": 6, "markerfacecolor":None}
+CONFIGLINE_IGA = {
+    "marker": "s",
+    "linestyle": "-",
+    "markersize": 10,
+    "markerfacecolor": "w",
+}
+CONFIGLINE_WQ = {
+    "marker": "o",
+    "linestyle": "--",
+    "markersize": 6,
+    "markerfacecolor": None,
+}
+CONFIGLINE_INC = {
+    "marker": "d",
+    "linestyle": "-.",
+    "markersize": 6,
+    "markerfacecolor": None,
+}
+CONFIGLINE_BDF = {
+    "marker": "+",
+    "linestyle": ":",
+    "markersize": 6,
+    "markerfacecolor": None,
+}

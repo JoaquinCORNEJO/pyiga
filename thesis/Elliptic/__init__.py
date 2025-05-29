@@ -40,10 +40,30 @@ COLORLIST = [
     "#9EDAE5",
 ]
 
-CONFIGLINE_IGA = {"marker": "s", "linestyle": "-", "markersize": 10, "markerfacecolor":"w"}
-CONFIGLINE_WQ = {"marker": "o", "linestyle": "--", "markersize": 6, "markerfacecolor":None}
-CONFIGLINE_INC = {"marker": "d", "linestyle": "-.", "markersize": 6, "markerfacecolor":None}
-CONFIGLINE_BDF = {"marker": "+", "linestyle": ":", "markersize": 6, "markerfacecolor":None}
+CONFIGLINE_IGA = {
+    "marker": "s",
+    "linestyle": "-",
+    "markersize": 10,
+    "markerfacecolor": "w",
+}
+CONFIGLINE_WQ = {
+    "marker": "o",
+    "linestyle": "--",
+    "markersize": 6,
+    "markerfacecolor": None,
+}
+CONFIGLINE_INC = {
+    "marker": "d",
+    "linestyle": "-.",
+    "markersize": 6,
+    "markerfacecolor": None,
+}
+CONFIGLINE_BDF = {
+    "marker": "+",
+    "linestyle": ":",
+    "markersize": 6,
+    "markerfacecolor": None,
+}
 
 # Set global variables
 GEONAME = "QA"
