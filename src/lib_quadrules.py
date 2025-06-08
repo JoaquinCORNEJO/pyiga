@@ -126,7 +126,9 @@ class quadrature_rule:
         self.degree: int = degree
         self.knotvector: np.ndarray = knotvector
         self.nbctrlpts: int = len(self.knotvector) - self.degree - 1
-        self._unique_kv: np.ndarray = np.unique(self.knotvector)
+        self._unique_kv: np.ndarray = np.unique(
+            self.knotvector[(self.knotvector >= 0) & (self.knotvector <= 1)]
+        )
         self._nbel: int = len(self._unique_kv) - 1
 
         self._parametric_weights: np.ndarray = np.array([])
@@ -269,9 +271,9 @@ class weighted_quadrature(quadrature_rule):
 
     def _get_position_rule_and_defaults(self, quadrature_type):
         if quadrature_type == 1:
-            return "midpoint", {"s": 1, "r": 2}
+            return "midpoint", {"s": 1, "r": self.degree + 2}
         elif quadrature_type == 2:
-            return "midpoint", {"s": 2, "r": 2}
+            return "midpoint", {"s": 2, "r": self.degree + 2}
         else:
             raise ValueError(f"Unknown quadrature type: {quadrature_type}")
 
@@ -279,8 +281,8 @@ class weighted_quadrature(quadrature_rule):
 
         assert self._position_rule in [
             "midpoint",
-            "internal",
-            "external_source",
+            "internal",  # be careful with negatives weights
+            "external_source",  # not recommended
         ], f"Unknown position rule: {self._position_rule}"
 
         s = self._extra_args.get("s")
@@ -327,13 +329,13 @@ class weighted_quadrature(quadrature_rule):
         knots = self._unique_kv
 
         # First span
-        tmp = algorithm(knots[0], knots[1], self.degree + r)
+        tmp = algorithm(knots[0], knots[1], r)
         if not include_boundaries:
             tmp = tmp[1:-1]
         quadpts.extend(tmp)
 
         # Last span
-        tmp = algorithm(knots[-2], knots[-1], self.degree + r)
+        tmp = algorithm(knots[-2], knots[-1], r)
         if not include_boundaries:
             tmp = tmp[1:-1]
         quadpts.extend(tmp)

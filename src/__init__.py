@@ -36,24 +36,37 @@ except:
     )
 
 # Default properties
-mpl.rcParams.update({"figure.autolayout": True})
-mpl.rcParams["figure.figsize"] = (5.0, 4.0)
-mpl.rcParams["figure.dpi"] = 300
-mpl.rcParams["axes.unicode_minus"] = True
-mpl.rcParams["axes.grid"] = True
+mpl.rcParams.update(
+    {
+        "figure.autolayout": True,
+        "figure.figsize": (5.0, 4.0),
+        "figure.dpi": 300,
+        "axes.unicode_minus": True,
+        "axes.grid": True,
+    }
+)
 
 try:
-    mpl.rcParams["text.usetex"] = True
-except Exception as e:
-    print(f"Warning: LaTeX is not installed. Using default settings. ({e})")
-
-try:
-    mpl.rcParams["mathtext.fontset"] = "stix"
-    mpl.rcParams["font.family"] = "STIXGeneral"
-except Exception as e:
-    print(
-        f"Warning: STIX font family is not available. Using default font settings. ({e})"
+    mpl.rcParams.update(
+        {
+            "text.usetex": True,
+            "font.family": "sans-serif",
+        }
     )
+
+    # mpl.rcParams.update(
+    #     {
+    #         "text.usetex": True,
+    #         "text.latex.preamble": r"""
+    #     \usepackage{helvet}
+    #     \usepackage{amsmath}
+    # """,
+    #     }
+    # )
+
+except Exception as e:
+    print(f"LaTeX not available. Using default settings. ({e})")
+
 
 # Select folder
 RESULT_FOLDER = os.path.dirname(os.path.realpath(__file__)) + "/../results/"

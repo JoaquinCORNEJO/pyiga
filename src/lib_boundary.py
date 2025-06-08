@@ -30,8 +30,7 @@ def convert_boundary_str_to_int(dir_list: list, fc_list: list) -> list[list, lis
 
 def create_connectivity_table(nnz_by_direction: np.ndarray) -> np.ndarray:
     indices = np.reshape(
-        np.indices(nnz_by_direction),
-        newshape=(len(nnz_by_direction), -1),
+        np.indices(nnz_by_direction), newshape=(len(nnz_by_direction), -1), order="F"
     )
     return np.transpose(indices).astype(int)
 

@@ -1,5 +1,6 @@
 from .lib_job import *
 from typing import Union, Callable, List, Tuple
+import time
 
 
 class heat_transfer_problem(space_problem):
@@ -603,6 +604,7 @@ class st_heat_transfer_problem(spacetime_problem):
         norm_residual_old = None
         inner_tolerance_old = None
 
+        start = time.process_time()
         for iteration in range(self._maxiters_nonlinear):
 
             residual, args = self._compute_heat_transfer_residual(
@@ -614,6 +616,9 @@ class st_heat_transfer_problem(spacetime_problem):
             print(f"Nonlinear error: {norm_residual:.3e}")
             self._nonlinear_residual_list.append(norm_residual)
             self._solution_history_list[f"noniter_{iteration}"] = np.copy(temperature)
+
+            finish = time.process_time()
+            self._nonlinear_time_list.append(finish - start)
 
             if iteration == 0:
                 norm_residual_ref = norm_residual

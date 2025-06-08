@@ -18,6 +18,7 @@ class problem:
         self._nonlinear_rate_list: List[float] = []
         self._linear_residual_list: List[np.ndarray] = []
         self._nonlinear_residual_list: List[float] = []
+        self._nonlinear_time_list: List[float] = []
         self._solution_history_list: Dict[str, np.ndarray] = {}
 
     def _add_solver_parameters(self, args: dict):
@@ -394,7 +395,6 @@ class spacetime_problem(problem):
             self.part.quadrule_list + self.time.quadrule_list
         )
         self._propagate_constraint_in_time()
-        return
 
     def _propagate_constraint_in_time(self):
         nbctrlpts_sp = self.part.nbctrlpts_total
