@@ -43,7 +43,7 @@ def increase_multiplicity_to_knotvector(
 
 
 def eval_ders_basis_COO_format(
-    degree: int, knotvector: np.ndarray, knots: np.ndarray
+    degree: int, knotvector: np.ndarray, knots: np.ndarray, ders: float = 1
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Evaluates B-spline functions and its first derivative at given knots.
     It returns matrices in CSR format.
@@ -55,25 +55,27 @@ def eval_ders_basis_COO_format(
 
     for j, knot in enumerate(knots):
         knot_span = helpers.find_span_linear(degree, knotvector, nbctrlpts, knot)
-        basis_ders = helpers.basis_function_ders(degree, knotvector, knot_span, knot, 1)
+        basis_ders = helpers.basis_function_ders(
+            degree, knotvector, knot_span, knot, ders
+        )
 
-        for i, (b0, b1) in enumerate(zip(*basis_ders)):
-            basis.append([b0, b1])
-            indices_i.append((knot_span - degree + i) % nbctrlpts)
+        for i, val in enumerate(zip(*basis_ders)):
+            basis.append(val)
+            indices_i.append(knot_span - degree + i)
             indices_j.append(j)
 
     return np.array(basis), np.array(indices_i), np.array(indices_j)
 
 
 def eval_ders_basis_sparse(
-    degree: int, knotvector: np.ndarray, knots: np.ndarray
+    degree: int, knotvector: np.ndarray, knots: np.ndarray, ders: float = 1
 ) -> List[sp.csr_matrix]:
     """Evaluates B-spline functions and its first derivative at given knots.
     It returns matrices as scipy CSR objects.
     """
     nbctrlpts = len(knotvector) - degree - 1
     basis_coo, indi_coo, indj_coo = eval_ders_basis_COO_format(
-        degree, knotvector, knots
+        degree, knotvector, knots, ders=ders
     )
 
     # Loop through the basis functions and derivatives

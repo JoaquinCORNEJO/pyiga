@@ -69,20 +69,21 @@ class singlepatch:
 
         nbctrlpts = self.nbctrlpts
         ctrlpts_old = obj.ctrlpts
-        ctrlpts_new = np.zeros((self.ndim, self.nbctrlpts_total))
+        ndim = min(3, len(ctrlpts_old[0]))
+        ctrlpts_new = np.zeros((ndim, self.nbctrlpts_total))
 
         idx_new = 0
         if self.ndim == 1:
             for i in range(nbctrlpts[0]):
                 idx_old = i
-                ctrlpts_new[:, idx_new] = np.copy(ctrlpts_old[idx_old])[: self.ndim]
+                ctrlpts_new[:, idx_new] = ctrlpts_old[idx_old][:ndim]
                 idx_new += 1
 
         elif self.ndim == 2:
             for j in range(nbctrlpts[1]):
                 for i in range(nbctrlpts[0]):
                     idx_old = j + i * nbctrlpts[1]
-                    ctrlpts_new[:, idx_new] = np.copy(ctrlpts_old[idx_old])[: self.ndim]
+                    ctrlpts_new[:, idx_new] = ctrlpts_old[idx_old][:ndim]
                     idx_new += 1
 
         elif self.ndim == 3:
@@ -90,9 +91,7 @@ class singlepatch:
                 for j in range(nbctrlpts[1]):
                     for i in range(nbctrlpts[0]):
                         idx_old = j + i * nbctrlpts[1] + k * nbctrlpts[1] * nbctrlpts[0]
-                        ctrlpts_new[:, idx_new] = np.copy(ctrlpts_old[idx_old])[
-                            : self.ndim
-                        ]
+                        ctrlpts_new[:, idx_new] = ctrlpts_old[idx_old][:ndim]
                         idx_new += 1
 
         return ctrlpts_new

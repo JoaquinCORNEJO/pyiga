@@ -67,68 +67,78 @@ class matrixfree:
 
 
 def eval_inverse_and_determinant(matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    n = np.shape(matrix)[0]
-    inv = np.zeros_like(matrix)
-    if n == 1:
-        det = np.abs(matrix[0, 0, ...])
-        inv = np.ones((1, 1, *np.shape(det)))
-    elif n == 2:
-        det = (
-            matrix[0, 0, ...] * matrix[1, 1, ...]
-            - matrix[0, 1, ...] * matrix[1, 0, ...]
-        )
-        inv[0, 0, ...] = matrix[1, 1, ...]
-        inv[1, 1, ...] = matrix[0, 0, ...]
-        inv[0, 1, ...] = -matrix[0, 1, ...]
-        inv[1, 0, ...] = -matrix[1, 0, ...]
-    elif n == 3:
-        det = (
-            matrix[0, 1, ...] * matrix[1, 2, ...] * matrix[2, 0, ...]
-            - matrix[0, 2, ...] * matrix[1, 1, ...] * matrix[2, 0, ...]
-            + matrix[0, 2, ...] * matrix[1, 0, ...] * matrix[2, 1, ...]
-            - matrix[0, 0, ...] * matrix[1, 2, ...] * matrix[2, 1, ...]
-            + matrix[0, 0, ...] * matrix[1, 1, ...] * matrix[2, 2, ...]
-            - matrix[0, 1, ...] * matrix[1, 0, ...] * matrix[2, 2, ...]
-        )
-        inv[0, 0, ...] = (
-            matrix[1, 1, ...] * matrix[2, 2, ...]
-            - matrix[1, 2, ...] * matrix[2, 1, ...]
-        )
-        inv[0, 1, ...] = (
-            matrix[0, 2, ...] * matrix[2, 1, ...]
-            - matrix[0, 1, ...] * matrix[2, 2, ...]
-        )
-        inv[0, 2, ...] = (
-            matrix[0, 1, ...] * matrix[1, 2, ...]
-            - matrix[0, 2, ...] * matrix[1, 1, ...]
-        )
-        inv[1, 0, ...] = (
-            matrix[1, 2, ...] * matrix[2, 0, ...]
-            - matrix[1, 0, ...] * matrix[2, 2, ...]
-        )
-        inv[1, 1, ...] = (
-            matrix[0, 0, ...] * matrix[2, 2, ...]
-            - matrix[0, 2, ...] * matrix[2, 0, ...]
-        )
-        inv[1, 2, ...] = (
-            matrix[0, 2, ...] * matrix[1, 0, ...]
-            - matrix[0, 0, ...] * matrix[1, 2, ...]
-        )
-        inv[2, 0, ...] = (
-            matrix[1, 0, ...] * matrix[2, 1, ...]
-            - matrix[1, 1, ...] * matrix[2, 0, ...]
-        )
-        inv[2, 1, ...] = (
-            matrix[0, 1, ...] * matrix[2, 0, ...]
-            - matrix[0, 0, ...] * matrix[2, 1, ...]
-        )
-        inv[2, 2, ...] = (
-            matrix[0, 0, ...] * matrix[1, 1, ...]
-            - matrix[0, 1, ...] * matrix[1, 0, ...]
-        )
+    assert matrix.ndim > 2, "Only for 3-dimensional matrices"
+    nm, ndim = np.shape(matrix)[:2]
+    other_dim = matrix.shape[2:]
+    inv = np.zeros(shape=(ndim, nm) + other_dim)
+    if nm == ndim:
+        if nm == 1:
+            det = np.abs(matrix[0, 0, ...])
+            inv = np.ones((1, 1, *np.shape(det)))
+        elif nm == 2:
+            det = (
+                matrix[0, 0, ...] * matrix[1, 1, ...]
+                - matrix[0, 1, ...] * matrix[1, 0, ...]
+            )
+            inv[0, 0, ...] = matrix[1, 1, ...]
+            inv[1, 1, ...] = matrix[0, 0, ...]
+            inv[0, 1, ...] = -matrix[0, 1, ...]
+            inv[1, 0, ...] = -matrix[1, 0, ...]
+        elif nm == 3:
+            det = (
+                matrix[0, 1, ...] * matrix[1, 2, ...] * matrix[2, 0, ...]
+                - matrix[0, 2, ...] * matrix[1, 1, ...] * matrix[2, 0, ...]
+                + matrix[0, 2, ...] * matrix[1, 0, ...] * matrix[2, 1, ...]
+                - matrix[0, 0, ...] * matrix[1, 2, ...] * matrix[2, 1, ...]
+                + matrix[0, 0, ...] * matrix[1, 1, ...] * matrix[2, 2, ...]
+                - matrix[0, 1, ...] * matrix[1, 0, ...] * matrix[2, 2, ...]
+            )
+            inv[0, 0, ...] = (
+                matrix[1, 1, ...] * matrix[2, 2, ...]
+                - matrix[1, 2, ...] * matrix[2, 1, ...]
+            )
+            inv[0, 1, ...] = (
+                matrix[0, 2, ...] * matrix[2, 1, ...]
+                - matrix[0, 1, ...] * matrix[2, 2, ...]
+            )
+            inv[0, 2, ...] = (
+                matrix[0, 1, ...] * matrix[1, 2, ...]
+                - matrix[0, 2, ...] * matrix[1, 1, ...]
+            )
+            inv[1, 0, ...] = (
+                matrix[1, 2, ...] * matrix[2, 0, ...]
+                - matrix[1, 0, ...] * matrix[2, 2, ...]
+            )
+            inv[1, 1, ...] = (
+                matrix[0, 0, ...] * matrix[2, 2, ...]
+                - matrix[0, 2, ...] * matrix[2, 0, ...]
+            )
+            inv[1, 2, ...] = (
+                matrix[0, 2, ...] * matrix[1, 0, ...]
+                - matrix[0, 0, ...] * matrix[1, 2, ...]
+            )
+            inv[2, 0, ...] = (
+                matrix[1, 0, ...] * matrix[2, 1, ...]
+                - matrix[1, 1, ...] * matrix[2, 0, ...]
+            )
+            inv[2, 1, ...] = (
+                matrix[0, 1, ...] * matrix[2, 0, ...]
+                - matrix[0, 0, ...] * matrix[2, 1, ...]
+            )
+            inv[2, 2, ...] = (
+                matrix[0, 0, ...] * matrix[1, 1, ...]
+                - matrix[0, 1, ...] * matrix[1, 0, ...]
+            )
+        else:
+            raise Warning("Not coded")
+        inv /= det
     else:
-        raise Warning("Not coded")
-    inv /= det
+        det = np.zeros(shape=other_dim)
+        for idx in np.ndindex(other_dim):
+            inv[(...,) + idx] = np.linalg.pinv(matrix[(...,) + idx])
+            det[idx] = np.sqrt(
+                np.linalg.det(matrix[(...,) + idx].T @ matrix[(...,) + idx])
+            )
     return det, inv
 
 
