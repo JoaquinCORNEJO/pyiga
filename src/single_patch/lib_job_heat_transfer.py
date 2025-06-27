@@ -286,6 +286,170 @@ class heat_transfer_problem(space_problem):
                 # Save data for next step
                 temperature_list[:, i] = np.copy(dj_n1)
 
+    def solve_heat_transfer_bdf(
+        self,
+        temperature_list: np.ndarray,
+        external_force_list: np.ndarray,
+        tspan: Tuple[float],
+        nsteps: int,
+        norder: int = 1,
+    ):
+        """
+        Solves an heat transfer equation using the Backward Differentiation Formula (BDF) method.
+
+        Parameters:
+        temperature_list : Array of initial temperature values at control points.
+        external_force_list : Array of external forces applied at control points.
+        tspan : A tuple containing the start and end times, (t0, tf).
+        nsteps : Number of time steps to use in the solution.
+        norder : Order of the BDF method (default is 1).
+        """
+        # Check input parameters
+        assert norder in [1, 2, 3, 4], "Order not supported"
+        assert nsteps >= 2, "At least 2 steps required"
+        assert (
+            np.size(temperature_list, 1) >= nsteps + 1
+        ), "Temperature list must have enough columns for time steps"
+
+        # Decide if it is a linear or nonlinear problem
+        update_properties = not (
+            self.material._has_uniform_capacity
+            and self.material._has_uniform_conductivity
+        )
+
+        # Get inactive control points
+        constraint_ctrlpts = self.sp_constraint_ctrlpts
+
+        def compute_flux_current(
+            histtemp: List[np.ndarray],
+            currtemp: np.ndarray,
+            dt: float,
+            norder: int,
+        ):
+            assert len(histtemp) == norder, "Size problem."
+            if norder == 1:
+                [y1] = histtemp
+                flux = (currtemp - y1) / dt
+            elif norder == 2:
+                [y1, y2] = histtemp
+                flux = (3 * currtemp - 4 * y2 + y1) / (2 * dt)
+            elif norder == 3:
+                [y1, y2, y3] = histtemp
+                flux = (11 * currtemp - 18 * y3 + 9 * y2 - 2 * y1) / (6 * dt)
+            elif norder == 4:
+                [y1, y2, y3, y4] = histtemp
+                flux = (25 * currtemp - 48 * y4 + 36 * y3 - 16 * y2 + 3 * y1) / (
+                    12 * dt
+                )
+            else:
+                raise ValueError("Order not supported")
+            return flux
+
+        def compute_flux_prediction(
+            histflux: List[np.ndarray],
+            norder: int,
+        ):
+            assert len(histflux) == norder, "Size problem."
+            if norder == 1:
+                [w1] = histflux
+                currflux = w1
+            elif norder == 2:
+                [w1, w2] = histflux
+                currflux = (3 * w1 - w2) / 2
+            elif norder == 3:
+                [w1, w2, w3] = histflux
+                currflux = (23 * w1 - 16 * w2 + 5 * w3) / 12
+            elif norder == 4:
+                [w1, w2, w3, w4] = histflux
+                currflux = (55 * w1 - 59 * w2 + 37 * w3 - 9 * w4) / 24
+            else:
+                raise ValueError("Order not supported")
+            return currflux
+
+        def select_snapshots(i, y, norder):
+            "Creates a list of previous solution values."
+            return [y[:, i - k] for k in range(norder, 0, -1)]
+
+        def select_parameter(norder):
+            assert norder in [1, 2, 3, 4], "Order not supported"
+            parameters = [1.0, 3.0 / 2.0, 11.0 / 6.0, 25.0 / 12.0]
+            return parameters[norder - 1]
+
+        # Initialize time and solution arrays
+        dt = (tspan[1] - tspan[0]) / nsteps
+        flux_list = np.zeros_like(temperature_list)
+        flux_list[constraint_ctrlpts[0], 0] = (
+            temperature_list[constraint_ctrlpts[0], 1]
+            - temperature_list[constraint_ctrlpts[0], 0]
+        ) / dt
+        residual, args = self._compute_heat_transfer_residual(
+            temperature_list[:, 0],
+            flux_list[:, 0],
+            external_force_list[:, 0],
+            scalar_coefs=(1, 1),
+            update_properties=update_properties,
+        )
+        clean_dirichlet(residual, constraint_ctrlpts)
+        flux_list[:, 0] += self._linearized_heat_trasfer_solver(
+            residual, scalar_coefs=(1, 0), args=args
+        )
+
+        # Main loop to solve the ODE using the BDF method
+        for i in range(1, nsteps + 1):
+
+            # Get current order and ensure it does not exceed norder
+            currorder = min(i, norder)
+
+            # Determine the order to use based on the current step
+            v_list = select_snapshots(i, flux_list, currorder)
+            d_list = select_snapshots(i, temperature_list, currorder)
+
+            # Predict the new solution value using the previous step
+            vj_n1 = compute_flux_prediction(v_list, currorder)
+            dj_n1 = temperature_list[:, i - 1] + dt * vj_n1
+
+            # Apply boundary conditions
+            vj_n1[constraint_ctrlpts[0]] = (
+                temperature_list[constraint_ctrlpts[0], i]
+                - dj_n1[constraint_ctrlpts[0]]
+            ) / dt
+            dj_n1[constraint_ctrlpts[0]] = temperature_list[constraint_ctrlpts[0], i]
+
+            # Solve the BDF residual equation to find the new solution value
+            print(f"Step: {i}")
+            for j in range(self._maxiters_nonlinear):
+
+                residual, args = self._compute_heat_transfer_residual(
+                    dj_n1,
+                    vj_n1,
+                    external_force_list[:, i],
+                    scalar_coefs=(1, 1),
+                    update_properties=update_properties,
+                )
+                clean_dirichlet(residual, constraint_ctrlpts)
+                self._solution_history_list[f"step_{i}_noniter_{j}"] = np.copy(dj_n1)
+
+                norm_residual = np.linalg.norm(residual)
+                if j == 0:
+                    ref_norm_residual = norm_residual
+                print(f"Non linear error: {norm_residual:.5e}")
+                if norm_residual <= max(
+                    self._safeguard, self._tolerance_nonlinear * ref_norm_residual
+                ):
+                    break
+
+                increment = self._linearized_heat_trasfer_solver(
+                    residual,
+                    scalar_coefs=(select_parameter(currorder) / dt, 1),
+                    args=args,
+                )
+                dj_n1 += increment
+                vj_n1 = compute_flux_current(d_list, dj_n1, dt, currorder)
+
+            # Save data for next step
+            temperature_list[:, i] = np.copy(dj_n1)
+            flux_list[:, i] = np.copy(vj_n1)
+
 
 class st_heat_transfer_problem(spacetime_problem):
 
