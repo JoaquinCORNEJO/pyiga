@@ -68,4 +68,32 @@ ax.grid(False)
 ax.set_ylabel("Time (s)")
 ax.set_xlabel("Position (m)")
 fig.tight_layout()
-fig.savefig(RESULT_FOLDER + "transient_heat")
+fig.savefig(f"{RESULT_FOLDER}transient_heat")
+
+#### SOLVE USING BDF
+norder = 2
+# Solve problem
+temperature = np.zeros_like(external_heat_source)
+# temperature[-1, :] = 10 # Add if we impose a constant temperature
+problem.solve_heat_transfer_bdf(temperature, external_heat_source, (0., 1.), 64, norder=norder)
+
+# Post-processing
+from src.lib_tensor_maths import bspline_operations
+
+fig, ax = plt.subplots(figsize=(8, 4))
+temperature_interp = bspline_operations.interpolate_meshgrid(
+    quadrule_list=patch.quadrule_list,
+    knots_list=[knots_interp],
+    u_ctrlpts=temperature.T,
+)
+POSITION, TIME = np.meshgrid(knots_interp * length, time_list)
+im = ax.contourf(POSITION, TIME, temperature_interp, 20, cmap="viridis")
+cbar = plt.colorbar(im)
+cbar.set_label("Temperature (°C)")
+
+ax.grid(False)
+ax.set_ylabel("Time (s)")
+ax.set_xlabel("Position (m)")
+fig.tight_layout()
+fig.savefig(f"{RESULT_FOLDER}transient_heat_bdf_{norder}")
+
