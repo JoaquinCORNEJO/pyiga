@@ -104,7 +104,7 @@ elif FIGCASE == 2:
                 error_file.iloc[-1, pos] / 40,
                 str(int(2 ** (pos + 3))) + r"$^3$" + " el.",
                 ha="center",
-				va="bottom",
+                va="bottom",
             )
         else:
             ax.text(
@@ -112,7 +112,7 @@ elif FIGCASE == 2:
                 error_file.iloc[-1, pos] / 40,
                 str(int(2 ** (pos + 3))) + r"$^3$" + " el.",
                 ha="center",
-				va="bottom",
+                va="bottom",
             )
 
     cbar = plt.colorbar(im)

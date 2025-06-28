@@ -135,27 +135,23 @@ for sufix, plotops in zip(sufixList, plotoptions):
     for i, [time_elapsed, label] in enumerate(zip(time_list, label_list)):
         color = COLORLIST[i]
         if quadrule == "gs":
-            ax.semilogy(
-                deg_list, time_elapsed, color=color, **plotops
-            )
+            ax.semilogy(deg_list, time_elapsed, color=color, **plotops)
         else:
             ax.semilogy(deg_list[1:], time_elapsed[1:], color=color, **plotops)
 
 ax.semilogy([], [], color="k", **CONFIGLINE_IGA, label="MF-Gauss quedrature")
 ax.semilogy([], [], color="k", **CONFIGLINE_WQ, label="MF-Weighted quadrature")
-auto_legend = ax.legend(loc='upper left')
+auto_legend = ax.legend(loc="upper left")
 
 from matplotlib.patches import Patch
+
 custom_handles = [
-    Patch(color=COLORLIST[0], label='Newton'),
-    Patch(color=COLORLIST[1], label='Picard'),
+    Patch(color=COLORLIST[0], label="Newton"),
+    Patch(color=COLORLIST[1], label="Picard"),
 ]
 
 manual_legend = plt.legend(
-    handles=custom_handles,
-    loc='lower right',
-    ncol=2,
-    frameon=True
+    handles=custom_handles, loc="lower right", ncol=2, frameon=True
 )
 plt.gca().add_artist(auto_legend)
 

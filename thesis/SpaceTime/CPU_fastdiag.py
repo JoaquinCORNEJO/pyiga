@@ -110,7 +110,12 @@ ax.xaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
 ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
 ax.set_xticks([16**4, 32**4, 64**4, 128**4])
 ax.set_xticklabels(
-	[r"$16^4$", r"$32^4$", r"$64^4$", r"$128^4$",]
+    [
+        r"$16^4$",
+        r"$32^4$",
+        r"$64^4$",
+        r"$128^4$",
+    ]
 )
 
 ax.minorticks_off()

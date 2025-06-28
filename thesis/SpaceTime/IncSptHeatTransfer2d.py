@@ -108,8 +108,12 @@ elif FIG_CASE == 2:
     degree, cuts = 10, 6
     nbel_time_list = np.array([2**cuts for cuts in range(2, 7)], dtype=int)
     degree_time_list = np.arange(1, 5)
-    abserror_inc1, relerror_inc1 = np.ones_like(nbel_time_list), np.ones_like(nbel_time_list)
-    abserror_inc2, relerror_inc2 = np.ones_like(nbel_time_list), np.ones_like(nbel_time_list)
+    abserror_inc1, relerror_inc1 = np.ones_like(nbel_time_list), np.ones_like(
+        nbel_time_list
+    )
+    abserror_inc2, relerror_inc2 = np.ones_like(nbel_time_list), np.ones_like(
+        nbel_time_list
+    )
     time_inc_list = np.ones_like(nbel_time_list)
     abserror_spt1 = np.ones((len(degree_time_list), len(nbel_time_list)))
     relerror_spt1 = np.ones_like(abserror_spt1)
@@ -120,7 +124,9 @@ elif FIG_CASE == 2:
     if RUNSIMU:
         for quadrule, quadtype in zip(["wq", "wq", "leg"], [1, 2, "gs"]):
 
-            for label_tol, auto_inner_tolerance in zip(['exact', 'inexact'], [False, True]):
+            for label_tol, auto_inner_tolerance in zip(
+                ["exact", "inexact"], [False, True]
+            ):
 
                 quad_args = {"quadrule": quadrule, "type": quadtype}
                 sufix = f"_{quadrule}_{quadtype}"
@@ -138,7 +144,11 @@ elif FIG_CASE == 2:
 
                     start = time.process_time()
                     problem_inc, time_inc, temp_inc = simulate_incremental(
-                        degree, cuts, powerDensityRing_inc, nbel_time=nbel_time, quad_args=quad_args
+                        degree,
+                        cuts,
+                        powerDensityRing_inc,
+                        nbel_time=nbel_time,
+                        quad_args=quad_args,
                     )
                     finish = time.process_time()
 
@@ -146,7 +156,10 @@ elif FIG_CASE == 2:
 
                     abserror_inc1[i], relerror_inc1[i] = problem_spt_inc.norm_of_error(
                         np.ravel(temp_inc, order="F"),
-                        norm_args={"type": "L2", "exact_function": exactTemperatureRing_spt},
+                        norm_args={
+                            "type": "L2",
+                            "exact_function": exactTemperatureRing_spt,
+                        },
                     )
 
                     abserror_inc2[i], relerror_inc2[i] = problem_inc.norm_of_error(
@@ -158,10 +171,18 @@ elif FIG_CASE == 2:
                         },
                     )
 
-                    np.savetxt(f"{FOLDER2DATA}2abserrorstag_inc1{sufix}.dat", abserror_inc1)
-                    np.savetxt(f"{FOLDER2DATA}2relerrorstag_inc1{sufix}.dat", relerror_inc1)
-                    np.savetxt(f"{FOLDER2DATA}2abserrorstag_inc2{sufix}.dat", abserror_inc2)
-                    np.savetxt(f"{FOLDER2DATA}2relerrorstag_inc2{sufix}.dat", relerror_inc2)
+                    np.savetxt(
+                        f"{FOLDER2DATA}2abserrorstag_inc1{sufix}.dat", abserror_inc1
+                    )
+                    np.savetxt(
+                        f"{FOLDER2DATA}2relerrorstag_inc1{sufix}.dat", relerror_inc1
+                    )
+                    np.savetxt(
+                        f"{FOLDER2DATA}2abserrorstag_inc2{sufix}.dat", abserror_inc2
+                    )
+                    np.savetxt(
+                        f"{FOLDER2DATA}2relerrorstag_inc2{sufix}.dat", relerror_inc2
+                    )
                     np.savetxt(f"{FOLDER2DATA}2timestag_inc1{sufix}.dat", time_inc_list)
 
                     for j, degree_spt in enumerate(degree_time_list):
@@ -174,42 +195,61 @@ elif FIG_CASE == 2:
                             degree_time=degree_spt,
                             nbel_time=nbel_time,
                             quad_args=quad_args,
-                            auto_inner_tolerance=auto_inner_tolerance
+                            auto_inner_tolerance=auto_inner_tolerance,
                         )
                         finish = time.process_time()
                         time_spt_list[j, i] = finish - start
 
-                        abserror_spt1[j, i], relerror_spt1[j, i] = problem_spt.norm_of_error(
-                            temp_spt,
-                            norm_args={
-                                "type": "L2",
-                                "exact_function": exactTemperatureRing_spt,
-                            },
-                        )
-
-                        abserror_spt2[j, i], relerror_spt2[j, i] = problem_inc.norm_of_error(
-                            np.reshape(
+                        abserror_spt1[j, i], relerror_spt1[j, i] = (
+                            problem_spt.norm_of_error(
                                 temp_spt,
-                                order="F",
-                                newshape=(
-                                    problem_spt.part.nbctrlpts_total,
-                                    time_spt.nbctrlpts_total,
-                                ),
-                            )[:, -1],
-                            norm_args={
-                                "type": "L2",
-                                "exact_function": exactTemperatureRing_inc,
-                                "exact_args": {"time": time_inc[-1]},
-                            },
+                                norm_args={
+                                    "type": "L2",
+                                    "exact_function": exactTemperatureRing_spt,
+                                },
+                            )
                         )
 
-                        np.savetxt(f"{FOLDER2DATA}2abserrorstag_spt1{sufix}_{label_tol}.dat", abserror_spt1)
-                        np.savetxt(f"{FOLDER2DATA}2relerrorstag_spt1{sufix}_{label_tol}.dat", relerror_spt1)
-                        np.savetxt(f"{FOLDER2DATA}2abserrorstag_spt2{sufix}_{label_tol}.dat", abserror_spt2)
-                        np.savetxt(f"{FOLDER2DATA}2relerrorstag_spt2{sufix}_{label_tol}.dat", relerror_spt2)
-                        np.savetxt(f"{FOLDER2DATA}2timestag_spt1{sufix}_{label_tol}.dat", time_spt_list)
+                        abserror_spt2[j, i], relerror_spt2[j, i] = (
+                            problem_inc.norm_of_error(
+                                np.reshape(
+                                    temp_spt,
+                                    order="F",
+                                    newshape=(
+                                        problem_spt.part.nbctrlpts_total,
+                                        time_spt.nbctrlpts_total,
+                                    ),
+                                )[:, -1],
+                                norm_args={
+                                    "type": "L2",
+                                    "exact_function": exactTemperatureRing_inc,
+                                    "exact_args": {"time": time_inc[-1]},
+                                },
+                            )
+                        )
 
-    quadrule, quadtype, label_tol = 'wq', 1, "exact"
+                        np.savetxt(
+                            f"{FOLDER2DATA}2abserrorstag_spt1{sufix}_{label_tol}.dat",
+                            abserror_spt1,
+                        )
+                        np.savetxt(
+                            f"{FOLDER2DATA}2relerrorstag_spt1{sufix}_{label_tol}.dat",
+                            relerror_spt1,
+                        )
+                        np.savetxt(
+                            f"{FOLDER2DATA}2abserrorstag_spt2{sufix}_{label_tol}.dat",
+                            abserror_spt2,
+                        )
+                        np.savetxt(
+                            f"{FOLDER2DATA}2relerrorstag_spt2{sufix}_{label_tol}.dat",
+                            relerror_spt2,
+                        )
+                        np.savetxt(
+                            f"{FOLDER2DATA}2timestag_spt1{sufix}_{label_tol}.dat",
+                            time_spt_list,
+                        )
+
+    quadrule, quadtype, label_tol = "wq", 1, "exact"
     sufix = f"_{quadrule}_{quadtype}"
 
     from mpltools import annotation
@@ -217,9 +257,13 @@ elif FIG_CASE == 2:
     fig, ax = plt.subplots(figsize=(5, 5))
 
     if PLOTRELATIVE:
-        error_list = np.loadtxt(f"{FOLDER2DATA}2relerrorstag_spt1{sufix}_{label_tol}.dat")
+        error_list = np.loadtxt(
+            f"{FOLDER2DATA}2relerrorstag_spt1{sufix}_{label_tol}.dat"
+        )
     else:
-        error_list = np.loadtxt(f"{FOLDER2DATA}2abserrorstag_spt1{sufix}_{label_tol}.dat")
+        error_list = np.loadtxt(
+            f"{FOLDER2DATA}2abserrorstag_spt1{sufix}_{label_tol}.dat"
+        )
     for i, deg in enumerate(degree_time_list):
         nbctrlpts_list = nbel_time_list + deg
         if deg == 1:
@@ -238,7 +282,9 @@ elif FIG_CASE == 2:
                 **CONFIGLINE_WQ,
                 label=rf"ST-MF-WQ $p_t={int(deg)}$",
             )
-        slope = np.polyfit(np.log10(nbctrlpts_list[2:]), np.log10(error_list[i, 2:]), 1)[0]
+        slope = np.polyfit(
+            np.log10(nbctrlpts_list[2:]), np.log10(error_list[i, 2:]), 1
+        )[0]
         slope = round(slope, 1)
         if deg != 2:
             annotation.slope_marker(
@@ -253,9 +299,8 @@ elif FIG_CASE == 2:
                 slope,
                 poly_kwargs={"facecolor": (0.73, 0.8, 1)},
                 ax=ax,
-                invert=True
+                invert=True,
             )
-
 
     if PLOTRELATIVE:
         error_list = np.loadtxt(f"{FOLDER2DATA}2relerrorstag_inc1{sufix}.dat")
@@ -311,7 +356,9 @@ elif FIG_CASE == 2:
                 **CONFIGLINE_WQ,
                 label=rf"ST-MF-WQ $p_t={int(deg)}$",
             )
-        slope = np.polyfit(np.log10(nbctrlpts_list[3:]), np.log10(time_list[i, 3:]), 1)[0]
+        slope = np.polyfit(np.log10(nbctrlpts_list[3:]), np.log10(time_list[i, 3:]), 1)[
+            0
+        ]
         slope = round(slope, 1)
         if deg == 1:
             annotation.slope_marker(
@@ -381,8 +428,12 @@ elif FIG_CASE == 3:
                 nonlintime_list = problem_spt._nonlinear_time_list
 
                 np.savetxt(f"{subfolderfolder}{prefix}linear_iters.dat", counter_list)
-                np.savetxt(f"{subfolderfolder}{prefix}nonlinear_res.dat", nonlinres_list)
-                np.savetxt(f"{subfolderfolder}{prefix}nonlinear_time.dat", nonlintime_list)
+                np.savetxt(
+                    f"{subfolderfolder}{prefix}nonlinear_res.dat", nonlinres_list
+                )
+                np.savetxt(
+                    f"{subfolderfolder}{prefix}nonlinear_time.dat", nonlintime_list
+                )
 
     fig0, ax0 = plt.subplots(figsize=(4.5, 4.5))
     fig1, ax1 = plt.subplots(figsize=(4.5, 4.5))
@@ -391,7 +442,7 @@ elif FIG_CASE == 3:
     axs = [ax0, ax1, ax2]
     linestyle_list = ["-", "--", "-", "--"]
     marker_list = ["o", "o", "s", "s"]
-    
+
     from matplotlib.ticker import MultipleLocator
 
     for [i, is_adaptive], prefix1 in zip(
@@ -403,14 +454,18 @@ elif FIG_CASE == 3:
             l = j + i * 2
             label = prefix1.capitalize() + " " + prefix2.capitalize()
             prefix = f"{prefix1}_{prefix2}_"
-            nb_linear_iterations = np.loadtxt(f"{subfolderfolder}{prefix}linear_iters.dat")
+            nb_linear_iterations = np.loadtxt(
+                f"{subfolderfolder}{prefix}linear_iters.dat"
+            )
             nonlinear_time = np.loadtxt(f"{subfolderfolder}{prefix}nonlinear_time.dat")
-            nonlinear_residual = np.loadtxt(f"{subfolderfolder}{prefix}nonlinear_res.dat")
+            nonlinear_residual = np.loadtxt(
+                f"{subfolderfolder}{prefix}nonlinear_res.dat"
+            )
             nonlinear_residual = nonlinear_residual / nonlinear_residual[0]
 
             for figcase, fig, ax in zip([0, 1, 2], figs, axs):
                 ylim = 1e-12
-                
+
                 if figcase == 0:
                     yy = nonlinear_residual
                     xx = nonlinear_time[: len(nonlinear_residual)]
@@ -434,7 +489,7 @@ elif FIG_CASE == 3:
                     ylabel = "Relative nonlinear residue"
                     xlabel = "Number of nonlinear iterations"
                     locatornum = 4
-                    
+
                 ax.semilogy(
                     xx,
                     yy,
@@ -470,7 +525,7 @@ elif FIG_CASE == 4:
         R3errorList = np.ones((len(degree_list), len(cuts_list)))
         T3timeList = np.ones((len(degree_list), len(cuts_list)))
 
-        for label_tol, auto_inner_tolerance in zip(['exact', 'inexact'], [False, True]):
+        for label_tol, auto_inner_tolerance in zip(["exact", "inexact"], [False, True]):
             for quadrule, quadtype in zip(["wq", "wq"], [1, 2]):
                 quad_args = {"quadrule": quadrule, "type": quadtype}
                 sufix = f"_{quadrule}_{quadtype}_{label_tol}.dat"
@@ -491,12 +546,14 @@ elif FIG_CASE == 4:
                         end = time.process_time()
                         T3timeList[i, j] = end - start
 
-                        A3errorList[i, j], R3errorList[i, j] = problem_spt.norm_of_error(
-                            temp_spt,
-                            norm_args={
-                                "type": "L2",
-                                "exact_function": exactTemperatureRing_spt,
-                            },
+                        A3errorList[i, j], R3errorList[i, j] = (
+                            problem_spt.norm_of_error(
+                                temp_spt,
+                                norm_args={
+                                    "type": "L2",
+                                    "exact_function": exactTemperatureRing_spt,
+                                },
+                            )
                         )
 
                         np.savetxt(f"{filenameA3}{sufix}", A3errorList)
@@ -539,9 +596,9 @@ elif FIG_CASE == 4:
 
         cbar = plt.colorbar(im, ax=ax)
         cbar.set_label("Degree")
-        tick_locs = 1 + (np.arange(len(degree_list)) + 0.5) * (len(degree_list) - 1) / len(
-            degree_list
-        )
+        tick_locs = 1 + (np.arange(len(degree_list)) + 0.5) * (
+            len(degree_list) - 1
+        ) / len(degree_list)
         cbar.set_ticks(tick_locs)
         cbar.set_ticklabels(degree_list)
 

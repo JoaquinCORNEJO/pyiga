@@ -35,14 +35,14 @@ def nonlineardersfunc(args: dict):
 def conductivity_property(args: dict):
     nonlinfun = np.ravel(nonlinearfunc(args), order="F")
     reference = np.array([[1.0, 0.5], [0.5, 2.0]])
-    prop = reference[:, :, np.newaxis] * nonlinfun 
+    prop = reference[:, :, np.newaxis] * nonlinfun
     return prop
 
 
 def conductivity_ders_property(args: dict):
     nonlinfun = np.ravel(nonlineardersfunc(args), order="F")
     reference = np.array([[1.0, 0.5], [0.5, 2.0]])
-    prop = reference[:, :, np.newaxis] * nonlinfun 
+    prop = reference[:, :, np.newaxis] * nonlinfun
     return prop
 
 
