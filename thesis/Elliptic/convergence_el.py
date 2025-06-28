@@ -74,13 +74,13 @@ for quadrule, quadtype, plotopts in zip(
                 nbel_list,
                 error_list[i, :],
                 color=color,
-				**plotopts,
+                **plotopts,
             )
             slope = round(
                 np.polyfit(np.log(nbel_list[2:]), np.log(error_list[i, 2:]), 1)[0], 1
             )
             annotation.slope_marker(
-                (nbel_list[-2], error_list[i, -2]*2),
+                (nbel_list[-2], error_list[i, -2] * 2),
                 slope,
                 poly_kwargs={"facecolor": (0.73, 0.8, 1)},
                 ax=ax,

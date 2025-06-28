@@ -127,7 +127,7 @@ class quadrature_rule:
         self.knotvector: np.ndarray = np.array(knotvector)
         self.nbctrlpts: int = len(self.knotvector) - self.degree - 1
         self._unique_kv: np.ndarray = np.unique(
-            self.knotvector[(self.knotvector >= 0.) & (self.knotvector <= 1.)]
+            self.knotvector[(self.knotvector >= 0.0) & (self.knotvector <= 1.0)]
         )
         self._nbel: int = len(self._unique_kv) - 1
 

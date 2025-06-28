@@ -158,7 +158,7 @@ ax.xaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
 ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
 
 xpos = 64**3
-ypos = 1.399345622800001365e+01
+ypos = 1.399345622800001365e01
 ax.scatter(xpos, ypos, marker="o", color="k", s=80, zorder=2)
 ax.text(
     xpos,
@@ -171,9 +171,7 @@ ax.text(
 )
 
 ax.set_xticks([32**3, 64**3, 128**3, 256**3])
-ax.set_xticklabels(
-    [r"$32^3$", r"$64^3$", r"$128^3$", r"$256^3$"]
-)
+ax.set_xticklabels([r"$32^3$", r"$64^3$", r"$128^3$", r"$256^3$"])
 
 ax.set_xlabel("Total number of elements")
 ax.set_ylabel("CPU time (s)")

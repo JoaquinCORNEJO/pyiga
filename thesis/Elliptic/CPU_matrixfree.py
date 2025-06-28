@@ -105,15 +105,17 @@ annotation = ["190 s", "5 s"]
 
 # Load data
 fig, ax = plt.subplots(figsize=(5, 5))
-for label, sufix, plotops, annot in zip(label_list, sufix_list, plotoptions, annotation):
+for label, sufix, plotops, annot in zip(
+    label_list, sufix_list, plotoptions, annotation
+):
     file = np.loadtxt(f"{FOLDER2DATA}{FILENAME}_{sufix}.dat")
     degree_list = file[:, 0]
     time_elapsed = file[:, 1]
-    if sufix.split('_')[0] == 'wq':
+    if sufix.split("_")[0] == "wq":
         ax.semilogy(degree_list[1:], time_elapsed[1:], label=label, **plotops)
     else:
         ax.semilogy(degree_list, time_elapsed, label=label, **plotops)
-        
+
     ax.text(
         degree_list[-1],
         0.5 * time_elapsed[-1],
@@ -148,11 +150,10 @@ for label, sufix, plotops, annot in zip(
     file = np.loadtxt(f"{FOLDER2DATA}{FILENAME}_{sufix}.dat")
     degree_list = file[:, 0]
     time_elapsed = file[:, 1]
-    if sufix.split('_')[0] == 'wq':
+    if sufix.split("_")[0] == "wq":
         ax.semilogy(degree_list[1:], time_elapsed[1:], label=label, **plotops)
     else:
         ax.semilogy(degree_list, time_elapsed, label=label, **plotops)
-        
 
     ax.text(
         degree_list[-1],
