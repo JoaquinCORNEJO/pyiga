@@ -146,9 +146,8 @@ if RUNSIMU:
 
     for IVP_method in IVP_method_list:
 
-        abserror_list, relerror_list = np.ones(len(nbel_time_list)), np.ones(
-            len(nbel_time_list)
-        )
+        abserror_list = np.ones(len(nbel_time_list))
+        relerror_list = np.ones(len(nbel_time_list))
 
         for i, nbel_time in enumerate(nbel_time_list):
 
@@ -163,19 +162,17 @@ if RUNSIMU:
                 exact_fun=exact_temperature,
             )
 
-            np.savetxt(
-                f"{FOLDER2DATA}abserrorstag_inc_{IVP_method}.dat", abserror_list
-            )
-            np.savetxt(
-                f"{FOLDER2DATA}relerrorstag_inc_{IVP_method}.dat", relerror_list
-            )
+            np.savetxt(f"{FOLDER2DATA}abserrorstag_inc_{IVP_method}.dat", abserror_list)
+            np.savetxt(f"{FOLDER2DATA}relerrorstag_inc_{IVP_method}.dat", relerror_list)
 
 from mpltools import annotation
 
 IVP_method_list = ["BDF1", "BDF2", "BDF3", "alpha"]
 fig, ax = plt.subplots(figsize=(5, 5))
 for i, IVP_method in enumerate(IVP_method_list):
-    label = "Crank-Nicolson" if IVP_method == "alpha" else f"Implicit BDF-{IVP_method[-1]}"
+    label = (
+        "Crank-Nicolson" if IVP_method == "alpha" else f"Implicit BDF-{IVP_method[-1]}"
+    )
     if PLOTRELATIVE:
         error_list = np.loadtxt(f"{FOLDER2DATA}relerrorstag_inc_{IVP_method}.dat")
     else:
