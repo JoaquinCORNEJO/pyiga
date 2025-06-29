@@ -5,6 +5,12 @@ from src.lib_material import heat_transfer_mat
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_heat_transfer import heat_transfer_problem
 
+def conductivity_property(args: dict):
+    temperature = args.get("temperature")
+    conductivity = np.zeros(shape=(1, 1, *np.shape(temperature)))
+    conductivity[0, 0, ...] = 3.0 + 2.0 * np.tanh(temperature / 50)
+    return conductivity
+
 
 def power_density(args: dict):
     t = args["time"]
@@ -16,7 +22,7 @@ def power_density(args: dict):
 
 
 # Create geometry
-degree, nbel, length = 6, 64, 1.0
+degree, nbel, length = 6, 5, 1.0
 geometry = mygeomdl(
     {"name": "line", "degree": degree, "nbel": nbel, "geo_parameters": {"L": length}}
 ).export_geometry()
@@ -24,7 +30,7 @@ patch = singlepatch(geometry, quad_args={"quadrule": "wq"})
 
 # Create material
 material = heat_transfer_mat()
-material.add_conductivity(1.0, is_uniform=True, shape_tensor=1)
+material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
 material.add_capacity(1.0, is_uniform=True)
 
 # Create boundary condition
@@ -37,7 +43,7 @@ boundary.add_constraint(
 problem = heat_transfer_problem(material, patch, boundary)
 
 # Create external force
-time_list = np.linspace(0, 1, 65)
+time_list = np.linspace(0, 1, 21)
 external_heat_source = np.zeros((patch.nbctrlpts_total, len(time_list)))
 for i, t in enumerate(time_list):
     external_heat_source[:, i] = problem.assemble_volumetric_force(
@@ -71,11 +77,11 @@ fig.tight_layout()
 fig.savefig(f"{RESULT_FOLDER}transient_heat")
 
 #### SOLVE USING BDF
-norder = 2
+norder = 1
 # Solve problem
-temperature = np.zeros_like(external_heat_source)
+temperature1 = np.zeros_like(external_heat_source)
 # temperature[-1, :] = 10 # Add if we impose a constant temperature
-problem.solve_heat_transfer_bdf(temperature, external_heat_source, (0., 1.), 64, norder=norder)
+problem.solve_heat_transfer_bdf(temperature1, external_heat_source, (time_list[0], time_list[-1]), len(time_list)-1, norder=norder)
 
 # Post-processing
 from src.lib_tensor_maths import bspline_operations
@@ -84,7 +90,7 @@ fig, ax = plt.subplots(figsize=(8, 4))
 temperature_interp = bspline_operations.interpolate_meshgrid(
     quadrule_list=patch.quadrule_list,
     knots_list=[knots_interp],
-    u_ctrlpts=temperature.T,
+    u_ctrlpts=temperature1.T,
 )
 POSITION, TIME = np.meshgrid(knots_interp * length, time_list)
 im = ax.contourf(POSITION, TIME, temperature_interp, 20, cmap="viridis")
@@ -96,4 +102,7 @@ ax.set_ylabel("Time (s)")
 ax.set_xlabel("Position (m)")
 fig.tight_layout()
 fig.savefig(f"{RESULT_FOLDER}transient_heat_bdf_{norder}")
+
+print("Difference between BDF and direct method:")
+print("error:", np.linalg.norm(temperature - temperature1))
 

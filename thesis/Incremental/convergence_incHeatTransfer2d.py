@@ -64,7 +64,7 @@ def simulate_incremental_bdf(
         problem_inc.solve_heat_transfer_bdf(
             temperature_inc,
             external_force,
-            (time_inc[0], time_inc[1]),
+            (time_inc[0], time_inc[-1]),
             nbel_time,
             norder=int(ivp[-1]),
         )
@@ -131,24 +131,40 @@ from mpltools import annotation
 
 fig, ax = plt.subplots(figsize=(5, 5))
 
-if PLOTRELATIVE:
-    error_list = np.loadtxt(f"{FOLDER2DATA}relerrorstag_inc1.dat")
-else:
-    error_list = np.loadtxt(f"{FOLDER2DATA}abserrorstag_inc1.dat")
+for i, IVP_method in enumerate(IVP_method_list):
+    label = (
+        "Crank-Nicolson" if IVP_method == "alpha" else f"Implicit BDF-{IVP_method[-1]}"
+    )
+    if PLOTRELATIVE:
+        error_list = np.loadtxt(f"{FOLDER2DATA}relerrorstag_inc_{IVP_method}.dat")
+    else:
+        error_list = np.loadtxt(f"{FOLDER2DATA}abserrorstag_inc_{IVP_method}.dat")
+    nbctrlpts = nbel_time_list + 1
+    if i < 3:
+        ax.loglog(nbctrlpts[1:], error_list[1:], **CONFIGLINE_BDF, label=label)
+    elif i == 3:
+        ax.loglog(
+            nbctrlpts[1:], error_list[1:], **CONFIGLINE_INC, color="k", label=label
+        )
 
-nbctrlpts_list = nbel_time_list + 1
-ax.loglog(
-    nbctrlpts_list, error_list, color="k", **CONFIGLINE_INC, label="Crank-Nicolson"
-)
-slope = np.polyfit(np.log10(nbctrlpts_list[:]), np.log10(error_list[:]), 1)[0]
-slope = round(slope, 1)
-annotation.slope_marker(
-    (nbctrlpts_list[-2], error_list[-2]),
-    slope,
-    poly_kwargs={"facecolor": (0.73, 0.8, 1)},
-    ax=ax,
-)
-
+    slope = np.polyfit(np.log10(nbctrlpts[3:]), np.log10(error_list[3:]), 1)[0]
+    slope = round(slope, 1)
+    if i != 2:
+        annotation.slope_marker(
+            (nbctrlpts[-2], error_list[-2]),
+            slope,
+            poly_kwargs={"facecolor": (0.73, 0.8, 1)},
+            ax=ax,
+        )
+    else:
+        annotation.slope_marker(
+            (nbctrlpts[-1], error_list[-1]),
+            slope,
+            poly_kwargs={"facecolor": (0.73, 0.8, 1)},
+            ax=ax,
+            invert=True,
+        )
+        
 if PLOTRELATIVE:
     ax.set_ylabel(r"Relative $L^2(\Pi)$ error")
     ax.set_ylim(top=1e0, bottom=1e-10)

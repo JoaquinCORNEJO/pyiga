@@ -28,7 +28,7 @@ def norm_of_error(problem: heat_transfer_problem, u_ctrlpts, t_nodes, exact_fun)
         knots_ref=[None] * problem.part.ndim,
         norm_type=norm_type,
     )
-    _, _, parametric_position_sp, _, det_jac_sp, parametric_weights_sp = output
+    quadpts_phy, det_jac_sp, parametric_weights_sp = output[3:]
 
     # Create a single patch for the time domain
     time_patch = singlepatch(
@@ -37,7 +37,7 @@ def norm_of_error(problem: heat_transfer_problem, u_ctrlpts, t_nodes, exact_fun)
                 "name": "line",
                 "degree": 1,
                 "nbel": len(t_nodes) - 1,
-                "geo_parameters": {"L": 1},
+                "geo_parameters": {"L": t_nodes[-1] - t_nodes[0]},
             }
         ).export_geometry(),
         quad_args={"quadtype": "gs", "default_order": 4},
@@ -48,7 +48,7 @@ def norm_of_error(problem: heat_transfer_problem, u_ctrlpts, t_nodes, exact_fun)
 
     # Initialize arrays for interpolated and exact solutions
     num_time_points = np.shape(u_ctrlpts)[1]
-    num_space_points = len(parametric_position_sp[0])
+    num_space_points = len(det_jac_sp)
     num_time_quad_points = time_patch.nbqp_total
 
     U_interp_space = np.empty((num_space_points, num_time_points))
@@ -57,7 +57,7 @@ def norm_of_error(problem: heat_transfer_problem, u_ctrlpts, t_nodes, exact_fun)
 
     # Compute the exact solution at all quadrature points in time
     for j, t in enumerate(parametric_position_tm):
-        args = {"time": t, "position": parametric_position_sp[0]}
+        args = {"time": t, "position": quadpts_phy}
         U_exact_full[:, j] = exact_fun(args)
 
     # Interpolate the solution in space
@@ -77,7 +77,7 @@ def norm_of_error(problem: heat_transfer_problem, u_ctrlpts, t_nodes, exact_fun)
 
     # Compute the determinant of the Jacobian and parametric weights for the full domain
     complete_det_jac = np.kron(det_jac_tm, det_jac_sp)
-    complete_parametric_weights = [parametric_weights_sp[0], parametric_weights_tm]
+    complete_parametric_weights = parametric_weights_sp + [parametric_weights_tm]
 
     # Flatten the arrays for norm computation
     u_exact = np.ravel(U_exact_full, order="F")
