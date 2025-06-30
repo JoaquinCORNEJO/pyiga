@@ -4,7 +4,7 @@ import time
 
 # Set global variables
 PLOTRELATIVE = True
-RUNSIMU = False
+RUNSIMU = True
 FIG_CASE = 2
 
 if FIG_CASE == 1:
@@ -105,16 +105,16 @@ elif FIG_CASE == 2:
 
     pass
 
-    degree, cuts = 10, 6
-    nbel_time_list = np.array([2**cuts for cuts in range(2, 7)], dtype=int)
+    degree, cuts = 8, 6
+    nbel_time_list = np.array([2**cuts for cuts in range(2, 8)], dtype=int)
     degree_time_list = np.arange(1, 5)
-    abserror_inc1, relerror_inc1 = np.ones_like(nbel_time_list), np.ones_like(
-        nbel_time_list
-    )
-    abserror_inc2, relerror_inc2 = np.ones_like(nbel_time_list), np.ones_like(
-        nbel_time_list
-    )
-    time_inc_list = np.ones_like(nbel_time_list)
+    #
+    abserror_inc1 = np.ones_like(nbel_time_list, dtype=float)
+    relerror_inc1 = np.ones_like(abserror_inc1)
+    abserror_inc2 = np.ones_like(abserror_inc1)
+    relerror_inc2 = np.ones_like(abserror_inc1)
+    time_inc_list = np.ones_like(abserror_inc1)
+    #
     abserror_spt1 = np.ones((len(degree_time_list), len(nbel_time_list)))
     relerror_spt1 = np.ones_like(abserror_spt1)
     abserror_spt2 = np.ones_like(abserror_spt1)
@@ -122,11 +122,13 @@ elif FIG_CASE == 2:
     time_spt_list = np.ones_like(abserror_spt1)
 
     if RUNSIMU:
-        for quadrule, quadtype in zip(["wq", "wq", "leg"], [1, 2, "gs"]):
 
-            for label_tol, auto_inner_tolerance in zip(
-                ["exact", "inexact"], [False, True]
-            ):
+        for quadrule, quadtype in zip(["wq", "wq", "gs"], [1, 2, "leg"]):
+                label_tol = "exact"
+                auto_inner_tolerance = False
+            # for label_tol, auto_inner_tolerance in zip(
+            #     ["exact", "inexact"], [False, True]
+            # ):
 
                 quad_args = {"quadrule": quadrule, "type": quadtype}
                 sufix = f"_{quadrule}_{quadtype}"

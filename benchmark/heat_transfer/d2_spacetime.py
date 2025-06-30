@@ -8,7 +8,7 @@ from numpy import sin, cos, tanh, pi
 
 # Global constants
 CST = 50
-DEGREE, NBEL = 3, 8
+DEGREE, NBEL = 8, 16
 
 
 def exact_temperature(args: dict):
@@ -225,15 +225,17 @@ def power_density(args: dict):
 
 
 # Create model
-quad_args = {"quadrule": "gs", "type": "leg"}
+quad_args = {"quadrule": "wq", "type": 2}
 geometry = mygeomdl(
-    {"name": "QA", "degree": DEGREE, "nbel": NBEL + 1}
+    {"name": "QA", "degree": DEGREE, "nbel": NBEL}
 ).export_geometry()
 space_patch = singlepatch(geometry, quad_args=quad_args)
 
 # Create time span
+NBEL_TIME = 16
+quad_args = {"quadrule": "gs", "type": "lob"}
 time_interval = mygeomdl(
-    {"name": "line", "degree": DEGREE, "nbel": NBEL}
+    {"name": "line", "degree": 1, "nbel": NBEL_TIME}
 ).export_geometry()
 time_patch = singlepatch(time_interval, quad_args=quad_args)
 
@@ -272,11 +274,3 @@ error = problem.norm_of_error(
     temperature, norm_args={"type": "L2", "exact_function": exact_temperature}
 )[0]
 print(f"Absolute error is {error:.2e}")
-temperature_cutted = np.reshape(
-    temperature, newshape=(-1, time_patch.nbctrlpts_total), order="F"
-)
-space_patch.postprocessing_primal(
-    fields={"temperature": temperature_cutted[:, -1]},
-    name="spacetime",
-    folder=RESULT_FOLDER,
-)

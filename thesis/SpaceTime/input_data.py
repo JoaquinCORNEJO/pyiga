@@ -617,7 +617,7 @@ def simulate_incremental(
     # Solve
     problem_inc._maxiters_nonlinear = 50
     problem_inc._tolerance_linear = 1e-12
-    problem_inc._tolerance_nonlinear = 1e-12
+    problem_inc._tolerance_nonlinear = 1e-8
     problem_inc.solve_heat_transfer(
         temperature_inc, external_force, time_list=time_inc, alpha=alpha
     )
