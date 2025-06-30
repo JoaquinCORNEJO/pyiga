@@ -261,13 +261,13 @@ class weighted_quadrature(quadrature_rule):
             **default_extra_args,
             **quad_args.get("rule_parameters", {}),
         }
-        self._use_gauss = False
+        self._use_other = False
         if degree == 1:
             print(
                 "Weighted quadrature does not support degree 1.\n "
                 "Gauss-like quadrature will be used instead."
             )
-            self._use_gauss = True
+            self._use_other = True
 
     def _get_position_rule_and_defaults(self, quadrature_type):
         if quadrature_type == 1:
@@ -457,7 +457,8 @@ class weighted_quadrature(quadrature_rule):
         return basis_coo, weights_coo, indi_coo, indj_coo
 
     def _set_coo_basis_weights(self):
-        if self._use_gauss:
+        if self._use_other:
+            assert self.degree == 1, "Only degree 1 is treated differently."
             # Overwrite the quadrature points, basis and weights with Gauss quadrature
             quadrule = gauss_quadrature(
                 degree=self.degree,
