@@ -189,7 +189,7 @@ class gauss_quadrature(quadrature_rule):
             self._order = quad_args.get("default_order", self.degree + 1)
             self._table_function = legendre_table
         elif self._quadrature_type == "lob":  # Lobatto
-            self._order = quad_args.get("default_order", self.degree + 2)
+            self._order = quad_args.get("default_order", self.degree + 1)
             self._table_function = lobatto_table
 
     def _get_isoparametric_variables(self):
@@ -201,11 +201,12 @@ class gauss_quadrature(quadrature_rule):
     def _set_quadrature_points(self):
         "Gets the position of Gauss quadrature points in parametric space"
         knots = self._unique_kv
+        scaling = 0.99999 if self._quadrature_type == "lob" and self.degree == 1 else 1.0
         quadpts = np.concatenate(
             [
                 0.5
                 * (
-                    (knots[i + 1] - knots[i]) * self._isoparametric_positions
+                    scaling*(knots[i + 1] - knots[i]) * self._isoparametric_positions
                     + knots[i]
                     + knots[i + 1]
                 )
@@ -264,8 +265,9 @@ class weighted_quadrature(quadrature_rule):
         self._use_other = False
         if degree == 1:
             print(
-                "Weighted quadrature does not support degree 1.\n "
-                "Gauss-like quadrature will be used instead."
+                "Becarefull, weighted quadrature is not " \
+                "supposed to use linear polynomials. " \
+                "Other type of quadrature will be used instead. \n "
             )
             self._use_other = True
 
@@ -459,7 +461,7 @@ class weighted_quadrature(quadrature_rule):
     def _set_coo_basis_weights(self):
         if self._use_other:
             assert self.degree == 1, "Only degree 1 is treated differently."
-            # Overwrite the quadrature points, basis and weights with Gauss quadrature
+            # Overwrite the quadrature points, basis and weights with other quadrature
             quadrule = gauss_quadrature(
                 degree=self.degree,
                 knotvector=self.knotvector,
@@ -486,10 +488,7 @@ class weighted_quadrature(quadrature_rule):
 
 def legendre_table(order: int) -> Tuple[np.ndarray, np.ndarray]:
     "Computes Gauss-Legendre weights and positions in isoparametric space for a given degree"
-    if order == 1:
-        pos = [0.0]
-        wgt = [2.0]
-    elif order == 2:
+    if order == 2:
         pos = [-0.577_350_269_189_625_76, 0.577_350_269_189_625_76]
         wgt = [1.0, 1.0]
     elif order == 3:

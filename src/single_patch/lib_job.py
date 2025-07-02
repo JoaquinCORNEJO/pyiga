@@ -29,7 +29,7 @@ class problem:
         self._tolerance_nonlinear: float = args.get("tol_nonlinear", 1e-6)
         self._use_preconditioner: bool = args.get("use_preconditioner", True)
         self._update_preconditioner: bool = args.get("update_preconditioner", True)
-        self._safeguard: float = 1e-14
+        self._safeguard: float = 1e-13
 
     def _solve_linear_system(
         self,

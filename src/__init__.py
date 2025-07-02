@@ -1,5 +1,10 @@
 # Python libraries
 import os, sys, re
+# os.environ["OMP_NUM_THREADS"] = "1"      # OpenMP
+# os.environ["OPENBLAS_NUM_THREADS"] = "1" # OpenBLAS
+# os.environ["MKL_NUM_THREADS"] = "1"      # Intel MKL
+# os.environ["VECLIB_MAXIMUM_THREADS"] = "1" # Accelerate (macOS)
+# os.environ["NUMEXPR_NUM_THREADS"] = "1"  # NumExpr
 import numpy as np
 from scipy import sparse as sp, linalg as sclin
 import scipy.sparse.linalg as scsplin
@@ -49,7 +54,7 @@ mpl.rcParams.update(
 try:
     mpl.rcParams.update(
         {
-            "text.usetex": True,
+            "text.usetex": False,
             "font.family": "sans-serif",
         }
     )
