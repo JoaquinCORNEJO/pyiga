@@ -105,4 +105,3 @@ fig.savefig(f"{RESULT_FOLDER}transient_heat_bdf_{norder}")
 
 print("Difference between BDF and direct method:")
 print("error:", np.linalg.norm(temperature - temperature1))
-
