@@ -41,6 +41,7 @@ boundary.add_constraint(
 
 # Set transient heat transfer problem
 problem = heat_transfer_problem(material, patch, boundary)
+problem._tolerance_nonlinear = 1e-10
 
 # Create external force
 time_list = np.linspace(0, 1, 21)
@@ -52,8 +53,7 @@ for i, t in enumerate(time_list):
 
 # Solve problem
 temperature = np.zeros_like(external_heat_source)
-# temperature[-1, :] = 10 # Add if we impose a constant temperature
-problem.solve_heat_transfer(temperature, external_heat_source, time_list, alpha=1)
+problem.solve_heat_transfer(temperature, external_heat_source, time_list, alpha=1, anderson_history_size=2)
 
 # Post-processing
 from src.lib_tensor_maths import bspline_operations
