@@ -450,7 +450,7 @@ class mechanical_problem(space_problem):
         )
         fastdiag.update_space_eigenvalues(scalar_coefs=(1, 0))
 
-        solv = solver(tolerance=1e-2)  # High tolerance
+        solv = linsolver(tolerance=1e-2)  # High tolerance
         sizeofvector = self.part.ndim * self.part.nbctrlpts_total
 
         def mass(x):

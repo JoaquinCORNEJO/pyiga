@@ -47,7 +47,7 @@ class problem:
             max_iters = self._maxiters_linear
         if tolerance is None:
             tolerance = self._tolerance_linear
-        solv: solver = solver(max_iters=max_iters, tolerance=tolerance)
+        solv: linsolver = linsolver(max_iters=max_iters, tolerance=tolerance)
         solver_methods = {"BICG": solv.BiCGSTAB, "CG": solv.CG, "GMRES": solv.GMRES}
         solve_method = solver_methods.get(self._linear_solver)
         if solve_method:

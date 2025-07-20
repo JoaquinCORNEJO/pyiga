@@ -158,6 +158,7 @@ class heat_transfer_problem(space_problem):
         external_force_list: np.ndarray,
         time_list: Union[None, np.ndarray] = None,
         alpha: float = 0.5,
+        anderson_history_size: int = 1,
     ):
 
         # Decide if it is a linear or nonlinear problem
@@ -244,6 +245,10 @@ class heat_transfer_problem(space_problem):
                 dj_n1[constraint_ctrlpts[0]] = temperature_list[
                     constraint_ctrlpts[0], i
                 ]
+                
+                # Anderson acceleration data
+                G_history = np.zeros((*np.shape(dj_n1), anderson_history_size))
+                R_history = np.zeros((*np.shape(dj_n1), anderson_history_size))
 
                 print(f"Step: {i}")
                 for j in range(self._maxiters_nonlinear):
@@ -272,6 +277,29 @@ class heat_transfer_problem(space_problem):
                     increment = self._linearized_heat_trasfer_solver(
                         residual, scalar_coefs=(1, alpha * dt), args=args
                     )
+                    
+                    new_velocity = vj_n1 + increment
+                    if j < anderson_history_size:
+                        R_history[..., j] = increment
+                        G_history[..., j] = new_velocity
+                    else:
+                        R_history = np.roll(R_history, -1, axis=1)
+                        G_history = np.roll(G_history, -1, axis=1)
+                        R_history[..., -1] = increment
+                        G_history[..., -1] = new_velocity
+
+                    if anderson_history_size > 0 and j >= anderson_history_size:
+                        A = R_history[..., 1:] - R_history[..., [0]]
+                        b = -R_history[..., 0]
+                        try:
+                            c = np.linalg.lstsq(A, b, rcond=None)[0]
+                            beta = np.zeros(anderson_history_size)
+                            beta[0] = 1.0 - np.sum(c)
+                            beta[1:] = c
+                            increment = np.einsum('...i,i->...', G_history, beta) - vj_n1
+                        except np.linalg.LinAlgError:
+                            print("LinAlgError in Anderson acceleration, fallback to simple increment")
+
                     vj_n1 += increment
                     dj_n1 += alpha * dt * increment
 
@@ -662,17 +690,18 @@ class st_heat_transfer_problem(spacetime_problem):
             self.clear_properties()
         output = self.interpolate_sptm_temperature(temperature)
         args = {"temperature": output[0], "gradient": output[1]}
-        residual = external_force - (
+        internal_force = (
             self.compute_mf_sptm_capacity(temperature, args)
             + self.compute_mf_sptm_conductivity(temperature, args)
         )
-
+        residual = external_force - internal_force
         return residual, args
 
     def solve_heat_transfer(
         self,
         temperature: np.ndarray,
         external_force: np.ndarray,
+        anderson_history_size: int = 1,
         use_picard: bool = True,
         auto_inner_tolerance: bool = True,
         auto_outer_tolerance: bool = False,
@@ -734,6 +763,10 @@ class st_heat_transfer_problem(spacetime_problem):
         norm_increment, norm_temperature = 1.0, 1.0
         norm_residual_old = None
         inner_tolerance_old = None
+        
+        # Anderson acceleration data
+        G_history = np.zeros((*np.shape(temperature), anderson_history_size))
+        R_history = np.zeros((*np.shape(temperature), anderson_history_size))
 
         start = time.process_time()
         for iteration in range(self._maxiters_nonlinear):
@@ -786,6 +819,28 @@ class st_heat_transfer_problem(spacetime_problem):
                 use_picard=use_picard,
                 inner_tolerance=inner_tolerance,
             )
+
+            new_temperature = temperature + increment
+            if iteration < anderson_history_size:
+                R_history[..., iteration] = -increment
+                G_history[..., iteration] = new_temperature
+            else:
+                R_history = np.roll(R_history, -1, axis=1)
+                G_history = np.roll(G_history, -1, axis=1)
+                R_history[..., -1] = -increment
+                G_history[..., -1] = new_temperature
+
+            if anderson_history_size > 0 and iteration >= anderson_history_size:
+                A = R_history[..., 1:] - R_history[..., [0]]
+                b = -R_history[..., 0]
+                try:
+                    c = np.linalg.lstsq(A, b, rcond=None)[0]
+                    beta = np.zeros(anderson_history_size)
+                    beta[0] = 1.0 - np.sum(c)
+                    beta[1:] = c
+                    increment = np.einsum('...i,i->...', G_history, beta) - temperature
+                except np.linalg.LinAlgError:
+                    print("LinAlgError in Anderson acceleration, fallback to simple increment")
 
             # Update active control points
             temperature += increment
