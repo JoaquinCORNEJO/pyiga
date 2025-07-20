@@ -25,7 +25,7 @@ class singlepatch:
             [len(self.knotvector[i]) - self.degree[i] - 1 for i in range(self.ndim)],
             dtype=int,
         )
-        self.nbctrlpts_total: int = np.product(self.nbctrlpts)
+        self.nbctrlpts_total: int = np.prod(self.nbctrlpts)
         self.ctrlpts: np.ndarray = self._read_control_points(obj)
         self.nbqp: np.ndarray = np.zeros(self.ndim, dtype=int)
         self.nbqp_total: int = 0
