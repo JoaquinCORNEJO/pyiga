@@ -7,7 +7,7 @@ from src.lib_tensor_maths import bspline_operations
 from src.single_patch.lib_job import space_problem
 from src.single_patch.lib_job_mechanical import mechanical_problem
 from src.single_patch.lib_job_heat_transfer import heat_transfer_problem
-from src.lib_solver import solver
+from src.lib_linear_solver import linsolver
 
 FOLDER2RESU = os.path.dirname(os.path.realpath(__file__)) + "/results/"
 FOLDER2DATA = os.path.dirname(os.path.realpath(__file__)) + "/data/"
@@ -217,7 +217,7 @@ def solve_dense_system(problem: space_problem, A, b):
         array_out = spilu.solve(array_in)
         return array_out
 
-    output = solver().GMRES(Afun, b, Pfun=Pfun, cleanfun=cleanfun, dod=dod)
+    output = linsolver().GMRES(Afun, b, Pfun=Pfun, cleanfun=cleanfun, dod=dod)
     return output["sol"], output["res"]
 
 

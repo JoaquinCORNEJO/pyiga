@@ -249,7 +249,7 @@ class bspline_operations:
     ) -> sp.csr_matrix:
         ndim = len(quadrule_list)
         nr_list = bspline_operations._set_matrix_size_from_quadrature(quadrule_list)[0]
-        matrix = sp.csr_matrix((np.product(nr_list), np.product(nr_list)))
+        matrix = sp.csr_matrix((np.prod(nr_list), np.prod(nr_list)))
         for j in range(ndim):
             beta_list = np.zeros(ndim, dtype=int)
             beta_list[j] = 1
@@ -277,7 +277,7 @@ class bspline_operations:
             quadrule_list
         )
         mf = matrixfree(nc_list)
-        array_out = np.zeros((nm, np.product(nr_list)))
+        array_out = np.zeros((nm, np.prod(nr_list)))
         for i in range(nm):
             array_out[i, :] = mf.sumfactorization(
                 [quadrule.weights[0] for quadrule in quadrule_list],

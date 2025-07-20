@@ -39,7 +39,7 @@ class boundary_condition:
     def __init__(self, nbctrlpts: np.ndarray = np.array([1, 1, 1]), nbvars: int = 1):
         self.nbvars: int = nbvars
         self._nbctrlpts: np.ndarray = nbctrlpts[nbctrlpts > 0]
-        self._nbctrlpts_total: int = np.product(self._nbctrlpts)
+        self._nbctrlpts_total: int = np.prod(self._nbctrlpts)
         self._connectivity_table: np.ndarray = create_connectivity_table(
             self._nbctrlpts
         )
