@@ -32,7 +32,6 @@ def clean_dirichlet(array: np.ndarray, idx_nodes: list):
 
 
 class linsolver:
-
     def __init__(self, max_iters=100, tolerance=1e-12):
         self._max_iters = max_iters
         self._tolerance = tolerance
@@ -95,11 +94,11 @@ class linsolver:
         self,
         Afun: Callable,
         b: np.ndarray,
-        Pfun=None,
-        dotfun=None,
-        cleanfun=None,
-        dod=None,
-        args={},
+        Pfun: Union[None, Callable] = None,
+        dotfun: Union[None, Callable] = None,
+        cleanfun: Union[None, Callable] = None,
+        dod: Union[list, None] = None,
+        args: dict = {},
     ) -> Dict[str, np.ndarray]:
         """
         Conjugate Gradient (CG) solver for solving the linear system Ax = b.
@@ -177,7 +176,7 @@ class linsolver:
         Pfun: Union[None, Callable] = None,
         dotfun: Union[None, Callable] = None,
         cleanfun: Union[None, Callable] = None,
-        dod: list = None,
+        dod: Union[list, None] = None,
         args: dict = {},
     ) -> Dict[str, np.ndarray]:
         """
@@ -276,7 +275,7 @@ class linsolver:
         Pfun: Union[None, Callable] = None,
         dotfun: Union[None, Callable] = None,
         cleanfun: Union[None, Callable] = None,
-        dod: list = None,
+        dod: Union[list, None] = None,
         args: dict = {},
     ) -> Dict[str, np.ndarray]:
         """

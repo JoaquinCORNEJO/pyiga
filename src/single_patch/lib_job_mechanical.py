@@ -172,7 +172,7 @@ class mechanical_problem(space_problem):
             strain, old_plastic_vars
         )
         residual = external_force - self._assemble_internal_force(stress)
-
+        clean_dirichlet(residual, self.sp_constraint_ctrlpts)
         return residual, mech_args, new_plastic_vars
 
     def _linearized_elastoplastic_solver(self, array_in, args={}):
@@ -217,7 +217,6 @@ class mechanical_problem(space_problem):
                     {},
                     update_properties=update_properties,
                 )
-                clean_dirichlet(residual, constraint_ctrlpts)
 
                 residual_norm = np.linalg.norm(residual)
                 if j == 0:
@@ -246,15 +245,16 @@ class mechanical_problem(space_problem):
 
                 print(f"Step: {i}")
                 for j in range(self._maxiters_nonlinear):
-                    residual, mech_args, new_plastic_vars = (
-                        self._compute_elastoplastic_residual(
-                            dj_n1,
-                            Fext_n1,
-                            old_plastic_vars,
-                            update_properties=update_properties,
-                        )
+                    (
+                        residual,
+                        mech_args,
+                        new_plastic_vars,
+                    ) = self._compute_elastoplastic_residual(
+                        dj_n1,
+                        Fext_n1,
+                        old_plastic_vars,
+                        update_properties=update_properties,
                     )
-                    clean_dirichlet(residual, constraint_ctrlpts)
 
                     residual_norm = np.linalg.norm(residual)
                     if j == 0:
@@ -372,7 +372,6 @@ class mechanical_problem(space_problem):
             d_n0, Fext, old_plastic_vars, update_properties=update_properties
         )
         old_plastic_vars = deepcopy(new_plastic_vars)
-        clean_dirichlet(residual, constraint_ctrlpts)
         a_n0 += compute_acceleration(self, residual, args)
 
         for i in range(1, len(time_list)):
@@ -399,9 +398,9 @@ class mechanical_problem(space_problem):
                     # d_m1 = np.copy(displacement_list[k, constraint_ctrlpts[k], -1])
                     # d_m2 = np.copy(displacement_list[k, constraint_ctrlpts[k], -2])
                     # d_m3 = np.copy(displacement_list[k, constraint_ctrlpts[k], -3])
-                    a_n1[k, constraint_ctrlpts[k]] = (
-                        0  # TODO: remake for non homogeneous B.C.
-                    )
+                    a_n1[
+                        k, constraint_ctrlpts[k]
+                    ] = 0  # TODO: remake for non homogeneous B.C.
             else:
                 for k in range(self.nbvars):
                     # dtm1 = time_list[i] - time_list[i-1]
@@ -409,9 +408,9 @@ class mechanical_problem(space_problem):
                     # d_m1 = np.copy(displacement_list[k, constraint_ctrlpts[k], i-1])
                     # d_m0 = np.copy(displacement_list[k, constraint_ctrlpts[k], i])
                     # d_p1 = np.copy(displacement_list[k, constraint_ctrlpts[k], i+1])
-                    a_n1[k, constraint_ctrlpts[k]] = (
-                        0  # TODO: remake for non homogeneous B.C.
-                    )
+                    a_n1[
+                        k, constraint_ctrlpts[k]
+                    ] = 0  # TODO: remake for non homogeneous B.C.
 
             for k in range(self.nbvars):
                 d_n1[k, constraint_ctrlpts[k]] = displacement_list[
@@ -424,7 +423,6 @@ class mechanical_problem(space_problem):
                 d_n1, Fext, old_plastic_vars, update_properties=update_properties
             )
             old_plastic_vars = deepcopy(new_plastic_vars)
-            clean_dirichlet(residual, constraint_ctrlpts)
             a_n1 += compute_acceleration(self, residual, args)
             v_n1 = update_velocity(v_n0, a_n0, a_n1, dt)
 

@@ -133,7 +133,6 @@ def eval_inverse_and_determinant(matrix: np.ndarray) -> Tuple[np.ndarray, np.nda
 
 
 class bspline_operations:
-
     def _set_matrix_size_from_quadrature(
         quadrule_list: List[quadrature_rule],
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -450,7 +449,6 @@ def combine_arrays(array_list: List[np.ndarray], coefs: np.ndarray) -> np.ndarra
 
 
 class fastdiagonalization:
-
     def __init__(self):
         self._nbvars: int = 0
         self._nbdirs: int = 0
