@@ -114,7 +114,7 @@ class heat_transfer_problem(space_problem):
         residual = external_force - self._assemble_internal_force(
             temperature, flux, scalar_coefs, args
         )
-
+        clean_dirichlet(residual, self.sp_constraint_ctrlpts)
         return residual, args
 
     def _linearized_heat_trasfer_solver(
@@ -167,9 +167,6 @@ class heat_transfer_problem(space_problem):
             and self.material._has_uniform_conductivity
         )
 
-        # Get inactive control points
-        constraint_ctrlpts = self.sp_constraint_ctrlpts
-
         if external_force_list.ndim == 1 and temperature_list.ndim == 1:
 
             # This is a steady heat problem
@@ -182,7 +179,6 @@ class heat_transfer_problem(space_problem):
                     scalar_coefs=(0, 1),
                     update_properties=update_properties,
                 )
-                clean_dirichlet(residual, constraint_ctrlpts)
 
                 norm_residual = np.linalg.norm(residual)
                 if j == 0:
@@ -202,6 +198,7 @@ class heat_transfer_problem(space_problem):
 
             # This is a transient problem
             assert len(time_list) >= 2, "At least 2 steps required"
+            constraint_ctrlpts = self.sp_constraint_ctrlpts
             Fext = np.copy(external_force_list[:, 0])
             d_n0 = np.copy(temperature_list[:, 0])
             v_n0 = np.zeros_like(d_n0)
@@ -217,7 +214,6 @@ class heat_transfer_problem(space_problem):
                 scalar_coefs=(1, 1),
                 update_properties=update_properties,
             )
-            clean_dirichlet(residual, constraint_ctrlpts)
             v_n0 += self._linearized_heat_trasfer_solver(
                 residual, scalar_coefs=(1, 0), args=args
             )
@@ -245,7 +241,7 @@ class heat_transfer_problem(space_problem):
                 dj_n1[constraint_ctrlpts[0]] = temperature_list[
                     constraint_ctrlpts[0], i
                 ]
-                
+
                 # Anderson acceleration data
                 G_history = np.zeros((*np.shape(dj_n1), anderson_history_size))
                 R_history = np.zeros((*np.shape(dj_n1), anderson_history_size))
@@ -260,7 +256,6 @@ class heat_transfer_problem(space_problem):
                         scalar_coefs=(1, 1),
                         update_properties=update_properties,
                     )
-                    clean_dirichlet(residual, constraint_ctrlpts)
                     self._solution_history_list[f"step_{i}_noniter_{j}"] = np.copy(
                         dj_n1
                     )
@@ -277,7 +272,7 @@ class heat_transfer_problem(space_problem):
                     increment = self._linearized_heat_trasfer_solver(
                         residual, scalar_coefs=(1, alpha * dt), args=args
                     )
-                    
+
                     new_velocity = vj_n1 + increment
                     if j < anderson_history_size:
                         R_history[..., j] = increment
@@ -296,9 +291,13 @@ class heat_transfer_problem(space_problem):
                             beta = np.zeros(anderson_history_size)
                             beta[0] = 1.0 - np.sum(c)
                             beta[1:] = c
-                            increment = np.einsum('...i,i->...', G_history, beta) - vj_n1
+                            increment = (
+                                np.einsum("...i,i->...", G_history, beta) - vj_n1
+                            )
                         except np.linalg.LinAlgError:
-                            print("LinAlgError in Anderson acceleration, fallback to simple increment")
+                            print(
+                                "LinAlgError in Anderson acceleration, fallback to simple increment"
+                            )
 
                     vj_n1 += increment
                     dj_n1 += alpha * dt * increment
@@ -385,7 +384,6 @@ class heat_transfer_problem(space_problem):
             scalar_coefs=(1, 1),
             update_properties=update_properties,
         )
-        clean_dirichlet(residual, constraint_ctrlpts)
         v_n0 += self._linearized_heat_trasfer_solver(
             residual, scalar_coefs=(1, 0), args=args
         )
@@ -421,7 +419,6 @@ class heat_transfer_problem(space_problem):
                     scalar_coefs=(1, 1),
                     update_properties=update_properties,
                 )
-                clean_dirichlet(residual, constraint_ctrlpts)
                 self._solution_history_list[f"step_{i}_noniter_{j}"] = np.copy(dj_n1)
 
                 norm_residual = np.linalg.norm(residual)
@@ -447,7 +444,6 @@ class heat_transfer_problem(space_problem):
 
 
 class st_heat_transfer_problem(spacetime_problem):
-
     def __init__(
         self,
         material: heat_transfer_mat,
@@ -650,7 +646,6 @@ class st_heat_transfer_problem(spacetime_problem):
         use_picard: bool = True,
         inner_tolerance: bool = None,
     ) -> np.ndarray:
-
         def compute_mf_tangent(array_in, args):
             array_out = self.compute_mf_sptm_capacity(
                 array_in, args
@@ -690,11 +685,11 @@ class st_heat_transfer_problem(spacetime_problem):
             self.clear_properties()
         output = self.interpolate_sptm_temperature(temperature)
         args = {"temperature": output[0], "gradient": output[1]}
-        internal_force = (
-            self.compute_mf_sptm_capacity(temperature, args)
-            + self.compute_mf_sptm_conductivity(temperature, args)
-        )
+        internal_force = self.compute_mf_sptm_capacity(
+            temperature, args
+        ) + self.compute_mf_sptm_conductivity(temperature, args)
         residual = external_force - internal_force
+        clean_dirichlet(residual, self.sptm_constraint_ctrlpts)
         return residual, args
 
     def solve_heat_transfer(
@@ -707,7 +702,6 @@ class st_heat_transfer_problem(spacetime_problem):
         auto_outer_tolerance: bool = False,
         nonlinear_args: dict = {},
     ):
-
         def select_outer_tolerance(
             problem: spacetime_problem, factor: float = 0.5
         ) -> float:
@@ -751,9 +745,6 @@ class st_heat_transfer_problem(spacetime_problem):
             else True
         )
 
-        # Get inactive control points
-        constraint_ctrlpts = self.sptm_constraint_ctrlpts
-
         # Initialize stopping criteria parameters
         outer_tolerance = (
             select_outer_tolerance(self)
@@ -763,7 +754,7 @@ class st_heat_transfer_problem(spacetime_problem):
         norm_increment, norm_temperature = 1.0, 1.0
         norm_residual_old = None
         inner_tolerance_old = None
-        
+
         # Anderson acceleration data
         G_history = np.zeros((*np.shape(temperature), anderson_history_size))
         R_history = np.zeros((*np.shape(temperature), anderson_history_size))
@@ -774,7 +765,6 @@ class st_heat_transfer_problem(spacetime_problem):
             residual, args = self._compute_heat_transfer_residual(
                 temperature, external_force, update_properties=update_properties
             )
-            clean_dirichlet(residual, constraint_ctrlpts)
 
             norm_residual = np.linalg.norm(residual)
             print(f"Nonlinear error: {norm_residual:.3e}")
@@ -838,9 +828,11 @@ class st_heat_transfer_problem(spacetime_problem):
                     beta = np.zeros(anderson_history_size)
                     beta[0] = 1.0 - np.sum(c)
                     beta[1:] = c
-                    increment = np.einsum('...i,i->...', G_history, beta) - temperature
+                    increment = np.einsum("...i,i->...", G_history, beta) - temperature
                 except np.linalg.LinAlgError:
-                    print("LinAlgError in Anderson acceleration, fallback to simple increment")
+                    print(
+                        "LinAlgError in Anderson acceleration, fallback to simple increment"
+                    )
 
             # Update active control points
             temperature += increment

@@ -29,7 +29,6 @@ def compute_deviatoric(tensor: np.ndarray) -> np.ndarray:
 
 
 class material:
-
     def __init__(self):
         self._has_uniform_density: bool = False
         self.add_density(1.0, is_uniform=True)  # By default
@@ -57,7 +56,6 @@ class material:
         shape_tensor: int = 2,
         is_uniform: bool = False,
     ) -> Callable:
-
         def broadcast(inpt: np.ndarray, shape_tensor: int, shape_quadpts: np.ndarray):
             tensor = np.zeros(shape=(shape_tensor, shape_tensor, *shape_quadpts))
             for i in range(shape_tensor):
@@ -136,9 +134,10 @@ class heat_transfer_mat(material):
 class isotropic_hardening:
     def __init__(self, elastic_limit: float, iso_args: dict):
         self.elas_limit: float = elastic_limit
-        self.iso_hardening_function, self.iso_dershardening_function = (
-            self._select_model(iso_args)
-        )
+        (
+            self.iso_hardening_function,
+            self.iso_dershardening_function,
+        ) = self._select_model(iso_args)
 
     def _select_model(self, iso_args: dict) -> Tuple[Callable, Callable]:
         models = {
@@ -262,7 +261,6 @@ class plasticity(material, ABC):
 
 
 class J2plasticity1d(plasticity):
-
     def __init__(self, mat_args: dict):
         super().__init__(mat_args=mat_args)
 
@@ -289,9 +287,12 @@ class J2plasticity1d(plasticity):
         plseq_n1 = np.copy(plseq_n0)
         theta = np.zeros_like(plseq_n0)
         for k in range(super().max_iter):
-            sum_back, hat_back, const_1, const_2 = (
-                self.kinematic_hardening.sum_chaboche_terms(dgamma, back_n0)
-            )
+            (
+                sum_back,
+                hat_back,
+                const_1,
+                const_2,
+            ) = self.kinematic_hardening.sum_chaboche_terms(dgamma, back_n0)
             shifted_stress = stress_trial - sum_back
             norm_shifted = np.ravel(np.abs(shifted_stress))
 
@@ -398,7 +399,6 @@ class J2plasticity1d(plasticity):
 
 
 class J2plasticity3d(plasticity):
-
     def __init__(self, mat_args: dict):
         super().__init__(mat_args=mat_args)
 
@@ -441,9 +441,12 @@ class J2plasticity3d(plasticity):
         theta_2, theta_1 = np.zeros_like(plseq_n0), np.zeros_like(plseq_n0)
 
         for k in range(super().max_iter):
-            sum_back, hat_back, const_1, const_2 = (
-                self.kinematic_hardening.sum_chaboche_terms(dgamma, back_n0)
-            )
+            (
+                sum_back,
+                hat_back,
+                const_1,
+                const_2,
+            ) = self.kinematic_hardening.sum_chaboche_terms(dgamma, back_n0)
             shifted_stress = compute_deviatoric(stress_trial - sum_back)
             norm_shifted = compute_norm_tensor(shifted_stress)
 
@@ -521,10 +524,14 @@ class J2plasticity3d(plasticity):
             idx_ten3d = (slice(None), slice(None), slice(None), *idx_scalar)
 
             # Compute plastic-strain increment
-            dgamma, tmp_hatback, tmp_normal, theta_1, theta_2 = (
-                self._prepare_parameters(
-                    stress_trial[idx_ten2d], back_n0[idx_ten3d], plseq_n0[idx_scalar]
-                )
+            (
+                dgamma,
+                tmp_hatback,
+                tmp_normal,
+                theta_1,
+                theta_2,
+            ) = self._prepare_parameters(
+                stress_trial[idx_ten2d], back_n0[idx_ten3d], plseq_n0[idx_scalar]
             )
 
             # Update internal hardening variable

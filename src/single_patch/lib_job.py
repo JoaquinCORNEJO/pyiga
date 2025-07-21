@@ -9,9 +9,10 @@ class problem:
         self._add_solver_parameters(args=solver_args)
         self.part: singlepatch = patch
         self.nbvars: int = boundary.nbvars
-        self.sp_free_ctrlpts, self.sp_constraint_ctrlpts = (
-            boundary.select_nodes4solving()
-        )
+        (
+            self.sp_free_ctrlpts,
+            self.sp_constraint_ctrlpts,
+        ) = boundary.select_nodes4solving()
         self.sp_table_dirichlet: np.ndarray = boundary.table_dirichlet
         self._sp_boundary: boundary_condition = boundary
         self._linear_tolerance_list: List[float] = []
@@ -191,9 +192,12 @@ class space_problem(problem):
         The surffun is a Neumann like function, ie, in transfer heat q = -(k grad(T)).normal
         and in elasticity t = sigma.normal
         """
-        quadrature_rules, jac, quadpts_phy, selected_nodes = (
-            self._prepare_surface_force_computation(location)
-        )
+        (
+            quadrature_rules,
+            jac,
+            quadpts_phy,
+            selected_nodes,
+        ) = self._prepare_surface_force_computation(location)
         args = args | {"position": quadpts_phy}
         fun_args = np.atleast_2d(fun(args))
         prop = np.zeros_like(fun_args)
@@ -349,7 +353,6 @@ class space_problem(problem):
         return abserror, relerror
 
     def compute_L2projection(self, u_at_quadpts: np.ndarray) -> np.ndarray:
-
         def mass(x_in, _):
             x_out = bspline_operations.compute_mf_scalar_u_v(
                 self.part.quadrule_list, self.part.det_jac, x_in, allow_lumping=False

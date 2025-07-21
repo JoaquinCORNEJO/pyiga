@@ -121,7 +121,6 @@ def solve_optimization_problem(
 
 
 class quadrature_rule:
-
     def __init__(self, degree, knotvector):
         self.degree: int = degree
         self.knotvector: np.ndarray = np.array(knotvector)
@@ -176,7 +175,6 @@ class quadrature_rule:
 
 
 class gauss_quadrature(quadrature_rule):
-
     def __init__(self, degree: int, knotvector: np.ndarray, quad_args: dict):
         super().__init__(degree, knotvector)
         self._quadrature_type = str(quad_args.get("type", "leg")).lower()
@@ -194,19 +192,22 @@ class gauss_quadrature(quadrature_rule):
 
     def _get_isoparametric_variables(self):
         "Gets the position of Gauss quadrature points in isoparametric space and its weights using known tables"
-        self._isoparametric_positions, self._isoparametric_weights = (
-            self._table_function(self._order)
-        )
+        (
+            self._isoparametric_positions,
+            self._isoparametric_weights,
+        ) = self._table_function(self._order)
 
     def _set_quadrature_points(self):
         "Gets the position of Gauss quadrature points in parametric space"
         knots = self._unique_kv
-        scaling = 0.99999 if self._quadrature_type == "lob" and self.degree == 1 else 1.0
+        scaling = (
+            0.99999 if self._quadrature_type == "lob" and self.degree == 1 else 1.0
+        )
         quadpts = np.concatenate(
             [
                 0.5
                 * (
-                    scaling*(knots[i + 1] - knots[i]) * self._isoparametric_positions
+                    scaling * (knots[i + 1] - knots[i]) * self._isoparametric_positions
                     + knots[i]
                     + knots[i + 1]
                 )
@@ -250,13 +251,13 @@ class gauss_quadrature(quadrature_rule):
 
 
 class weighted_quadrature(quadrature_rule):
-
     def __init__(self, degree: int, knotvector: np.ndarray, quad_args: dict):
         super().__init__(degree, knotvector)
         self._quadrature_type = quad_args.get("type", 1)
-        default_position_rule, default_extra_args = (
-            self._get_position_rule_and_defaults(self._quadrature_type)
-        )
+        (
+            default_position_rule,
+            default_extra_args,
+        ) = self._get_position_rule_and_defaults(self._quadrature_type)
         self._position_rule = quad_args.get("position_rule", default_position_rule)
         self._extra_args = {
             **default_extra_args,
@@ -265,8 +266,8 @@ class weighted_quadrature(quadrature_rule):
         self._use_other = False
         if degree == 1:
             print(
-                "Becarefull, weighted quadrature is not " \
-                "supposed to use linear polynomials. " \
+                "Becarefull, weighted quadrature is not "
+                "supposed to use linear polynomials. "
                 "Other type of quadrature will be used instead. \n "
             )
             self._use_other = True
