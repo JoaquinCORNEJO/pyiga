@@ -9,7 +9,7 @@ import time
 
 # Global constants
 CST = 25
-DEGREE, NBEL = 8, 64
+DEGREE, NBEL = 4, 16
 
 
 def exact_temperature(args: dict):
@@ -20,7 +20,12 @@ def exact_temperature(args: dict):
     u = np.zeros((len(x), len(time)))
     for i, t in enumerate(time):
         u[:, i] = (
-            CST*sin(pi*y)*sin(pi*(y+0.75*x-0.5)*(-y+0.75*x-0.5))*sin(5*pi*x)*sin(pi/2*t)*(1+0.75*cos(3*pi/2*t))
+            CST
+            * sin(pi * y)
+            * sin(pi * (y + 0.75 * x - 0.5) * (-y + 0.75 * x - 0.5))
+            * sin(5 * pi * x)
+            * sin(pi / 2 * t)
+            * (1 + 0.75 * cos(3 * pi / 2 * t))
         )
     return np.ravel(u, order="F")
 
@@ -32,22 +37,28 @@ def power_density(args: dict):
     y = position[1, :]
     f = np.zeros((len(x), len(time)))
     for i, t in enumerate(time):
-        u1 = pi*(y - (3*x)/4 + 1/2)*((3*x)/4 + y - 1/2); u2 = sin((pi*t)/2); u3 = sin(5*pi*x)
-        u4 = ((3*cos((3*pi*t)/2))/4 + 1); u5 = pi*(y - (3*x)/4 + 1/2) + pi*((3*x)/4 + y - 1/2)
-        u6 = (3*pi*(y - (3*x)/4 + 1/2))/4 - (3*pi*((3*x)/4 + y - 1/2))/4
+        u1 = pi * (y - (3 * x) / 4 + 1 / 2) * ((3 * x) / 4 + y - 1 / 2)
+        u2 = sin((pi * t) / 2)
+        u3 = sin(5 * pi * x)
+        u4 = (3 * cos((3 * pi * t) / 2)) / 4 + 1
+        u5 = pi * (y - (3 * x) / 4 + 1 / 2) + pi * ((3 * x) / 4 + y - 1 / 2)
+        u6 = (3 * pi * (y - (3 * x) / 4 + 1 / 2)) / 4 - (
+            3 * pi * ((3 * x) / 4 + y - 1 / 2)
+        ) / 4
         f[:, i] = (
-            (23*CST*pi*cos(u1)*u2*u3*sin(pi*y)*u4)/4
-            - (CST*pi*sin(u1)*cos((pi*t)/2)*u3*sin(pi*y)*u4)/2
-            - 4*CST*sin(u1)*u2*u3*sin(pi*y)*(u5)**2*u4
-            - 2*CST*sin(u1)*u2*u3*sin(pi*y)*(u6)**2*u4
-            + 10*CST*pi**2*sin(u1)*cos(5*pi*x)*cos(pi*y)*u2*u4
-            + (9*CST*pi*sin(u1)*u2*sin((3*pi*t)/2)*u3*sin(pi*y))/8
-            - 54*CST*pi**2*sin(u1)*u2*u3*sin(pi*y)*u4
-            - 2*CST*sin(u1)*u2*u3*sin(pi*y)*(u5)*(u6)*u4
-            + 10*CST*pi*cos(u1)*cos(5*pi*x)*u2*sin(pi*y)*(u5)*u4
-            + 8*CST*pi*cos(u1)*cos(pi*y)*u2*u3*(u5)*u4
-            + 20*CST*pi*cos(u1)*cos(5*pi*x)*u2*sin(pi*y)*(u6)*u4
-            + 2*CST*pi*cos(u1)*cos(pi*y)*u2*u3*(u6)*u4
+            (23 * CST * pi * cos(u1) * u2 * u3 * sin(pi * y) * u4) / 4
+            - (CST * pi * sin(u1) * cos((pi * t) / 2) * u3 * sin(pi * y) * u4) / 2
+            - 4 * CST * sin(u1) * u2 * u3 * sin(pi * y) * (u5) ** 2 * u4
+            - 2 * CST * sin(u1) * u2 * u3 * sin(pi * y) * (u6) ** 2 * u4
+            + 10 * CST * pi**2 * sin(u1) * cos(5 * pi * x) * cos(pi * y) * u2 * u4
+            + (9 * CST * pi * sin(u1) * u2 * sin((3 * pi * t) / 2) * u3 * sin(pi * y))
+            / 8
+            - 54 * CST * pi**2 * sin(u1) * u2 * u3 * sin(pi * y) * u4
+            - 2 * CST * sin(u1) * u2 * u3 * sin(pi * y) * (u5) * (u6) * u4
+            + 10 * CST * pi * cos(u1) * cos(5 * pi * x) * u2 * sin(pi * y) * (u5) * u4
+            + 8 * CST * pi * cos(u1) * cos(pi * y) * u2 * u3 * (u5) * u4
+            + 20 * CST * pi * cos(u1) * cos(5 * pi * x) * u2 * sin(pi * y) * (u6) * u4
+            + 2 * CST * pi * cos(u1) * cos(pi * y) * u2 * u3 * (u6) * u4
         )
     return np.ravel(f, order="F")
 
@@ -69,13 +80,13 @@ time_patch = singlepatch(time_interval, quad_args=quad_args)
 material = heat_transfer_mat()
 material.add_capacity(1, is_uniform=True)
 material.add_conductivity(
-    2*np.array([[1.0, 0.5], [0.5, 2.0]]), is_uniform=True, shape_tensor=2
+    2 * np.array([[1.0, 0.5], [0.5, 2.0]]), is_uniform=True, shape_tensor=2
 )
 
 # Block boundaries
-boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nbvars=1)
+boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nb_vars_per_ctrlpt=1)
 boundary.add_constraint(
-    location_list=[{"direction": "x,y", "face": "both,both"}],
+    location_list=[{"direction": "all", "face": "both"}],
     constraint_type="dirichlet",
 )
 

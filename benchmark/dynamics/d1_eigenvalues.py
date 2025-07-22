@@ -26,7 +26,7 @@ def simulate(degree):
         }
     ).export_geometry()
     patch = singlepatch(geometry, quad_args={"quadrule": "gs", "type": "leg"})
-    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     material = J2plasticity1d({"elastic_modulus": YOUNG})
     material.add_density(RHO, is_uniform=True)
     problem = mechanical_problem(material, patch, boundary)

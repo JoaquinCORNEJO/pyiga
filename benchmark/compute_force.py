@@ -2,7 +2,7 @@ import sympy as sp
 from sympy import sin, cos, tanh, pi
 
 # Variables
-x, y, t, CST = sp.symbols('x y t CST')
+x, y, t, CST = sp.symbols("x y t CST")
 
 # Solución manufacturada ejemplo
 T = (

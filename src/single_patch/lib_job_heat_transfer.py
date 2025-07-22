@@ -43,7 +43,7 @@ class heat_transfer_problem(space_problem):
             self.part.quadrule_list,
             self._capacity_property,
             array_in,
-            allow_lumping=False,
+            allow_lumping=self.allow_lumping,
         )
         return array_out
 
@@ -105,10 +105,9 @@ class heat_transfer_problem(space_problem):
         flux: np.ndarray,
         external_force: np.ndarray,
         scalar_coefs: tuple,
-        update_properties: bool = False,
     ) -> Tuple[np.ndarray, dict]:
 
-        if update_properties:
+        if self.update_properties:
             self.clear_properties()
         args = {"temperature": self.interpolate_temperature(temperature)}
         residual = external_force - self._assemble_internal_force(
@@ -162,7 +161,7 @@ class heat_transfer_problem(space_problem):
     ):
 
         # Decide if it is a linear or nonlinear problem
-        update_properties = not (
+        self.update_properties = not (
             self.material._has_uniform_capacity
             and self.material._has_uniform_conductivity
         )
@@ -177,7 +176,6 @@ class heat_transfer_problem(space_problem):
                     None,
                     external_force_list,
                     scalar_coefs=(0, 1),
-                    update_properties=update_properties,
                 )
 
                 norm_residual = np.linalg.norm(residual)
@@ -212,7 +210,6 @@ class heat_transfer_problem(space_problem):
                 v_n0,
                 Fext,
                 scalar_coefs=(1, 1),
-                update_properties=update_properties,
             )
             v_n0 += self._linearized_heat_trasfer_solver(
                 residual, scalar_coefs=(1, 0), args=args
@@ -254,7 +251,6 @@ class heat_transfer_problem(space_problem):
                         vj_n1,
                         Fext,
                         scalar_coefs=(1, 1),
-                        update_properties=update_properties,
                     )
                     self._solution_history_list[f"step_{i}_noniter_{j}"] = np.copy(
                         dj_n1
@@ -331,7 +327,7 @@ class heat_transfer_problem(space_problem):
         ), "Temperature list must have enough columns for time steps"
 
         # Decide if it is a linear or nonlinear problem
-        update_properties = not (
+        self.update_properties = not (
             self.material._has_uniform_capacity
             and self.material._has_uniform_conductivity
         )
@@ -382,7 +378,6 @@ class heat_transfer_problem(space_problem):
             v_n0,
             Fext,
             scalar_coefs=(1, 1),
-            update_properties=update_properties,
         )
         v_n0 += self._linearized_heat_trasfer_solver(
             residual, scalar_coefs=(1, 0), args=args
@@ -417,7 +412,6 @@ class heat_transfer_problem(space_problem):
                     vj_n1,
                     Fext,
                     scalar_coefs=(1, 1),
-                    update_properties=update_properties,
                 )
                 self._solution_history_list[f"step_{i}_noniter_{j}"] = np.copy(dj_n1)
 
@@ -678,10 +672,9 @@ class st_heat_transfer_problem(spacetime_problem):
         self,
         temperature: np.ndarray,
         external_force: np.ndarray,
-        update_properties: bool = False,
     ) -> Tuple[np.ndarray, dict]:
 
-        if update_properties:
+        if self.update_properties:
             self.clear_properties()
         output = self.interpolate_sptm_temperature(temperature)
         args = {"temperature": output[0], "gradient": output[1]}
@@ -738,7 +731,7 @@ class st_heat_transfer_problem(spacetime_problem):
             return max(self._tolerance_linear, min(eps_kr0, threshold_ref))
 
         # Decide if linear or nonlinear problem
-        update_properties = (
+        self.update_properties = (
             False
             if self.material._has_uniform_capacity
             and self.material._has_uniform_conductivity
@@ -763,7 +756,7 @@ class st_heat_transfer_problem(spacetime_problem):
         for iteration in range(self._maxiters_nonlinear):
 
             residual, args = self._compute_heat_transfer_residual(
-                temperature, external_force, update_properties=update_properties
+                temperature, external_force
             )
 
             norm_residual = np.linalg.norm(residual)

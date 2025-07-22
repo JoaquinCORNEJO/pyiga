@@ -3,10 +3,14 @@ from typing import List, Dict, Callable, Union, Tuple
 
 
 class problem:
+
+    _safeguard: float = 1e-14
+    update_properties: bool = False
+
     def __init__(
         self, patch: singlepatch, boundary: boundary_condition, solver_args: dict
     ):
-        self._add_solver_parameters(args=solver_args)
+        self.add_solver_parameters(args=solver_args)
         self.part: singlepatch = patch
         self.nbvars: int = boundary.nbvars
         (
@@ -22,7 +26,7 @@ class problem:
         self._nonlinear_time_list: List[float] = []
         self._solution_history_list: Dict[str, np.ndarray] = {}
 
-    def _add_solver_parameters(self, args: dict):
+    def add_solver_parameters(self, args: dict):
         self._linear_solver: str = args.get("solver", "GMRES")
         self._maxiters_linear: int = args.get("iters_linear", 100)
         self._tolerance_linear: float = args.get("tol_linear", 1e-8)
@@ -30,7 +34,6 @@ class problem:
         self._tolerance_nonlinear: float = args.get("tol_nonlinear", 1e-6)
         self._use_preconditioner: bool = args.get("use_preconditioner", True)
         self._update_preconditioner: bool = args.get("update_preconditioner", True)
-        self._safeguard: float = 1e-13
 
     def _solve_linear_system(
         self,
@@ -41,30 +44,28 @@ class problem:
         cleanfun: Union[None, Callable] = None,
         dod: list = None,
         args: dict = {},
-        max_iters: Union[None, int] = None,
+        maxiters: Union[None, int] = None,
         tolerance: Union[None, float] = None,
     ) -> Dict[str, np.ndarray]:
-        if max_iters is None:
-            max_iters = self._maxiters_linear
-        if tolerance is None:
-            tolerance = self._tolerance_linear
-        solv: linsolver = linsolver(max_iters=max_iters, tolerance=tolerance)
-        solver_methods = {"BICG": solv.BiCGSTAB, "CG": solv.CG, "GMRES": solv.GMRES}
-        solve_method = solver_methods.get(self._linear_solver)
-        if solve_method:
-            if not self._use_preconditioner:
-                Pfun = None
-            output = solve_method(
-                Afun,
-                bvec,
-                Pfun=Pfun,
-                dotfun=dotfun,
-                cleanfun=cleanfun,
-                dod=dod,
-                args=args,
-            )
-        else:
-            raise ValueError(f"Unknown linear solver method: {self._linear_solver}")
+
+        maxiters = maxiters if np.isscalar(maxiters) else self._maxiters_linear
+        tolerance = tolerance if np.isscalar(tolerance) else self._tolerance_linear
+        solv: linsolver = linsolver(maxiters=maxiters, tolerance=tolerance)
+        solver_method_list = {"BICG": solv.BiCGSTAB, "CG": solv.CG, "GMRES": solv.GMRES}
+        solver_method = solver_method_list.get(self._linear_solver)
+        assert (
+            solver_method is not None
+        ), f"Unknown linear solver method: {self._linear_solver}"
+        Pfun = Pfun if self._use_preconditioner else None
+        output = solver_method(
+            Afun,
+            bvec,
+            Pfun=Pfun,
+            dotfun=dotfun,
+            cleanfun=cleanfun,
+            dod=dod,
+            args=args,
+        )
         return output
 
     def _calculate_norm(
@@ -216,9 +217,7 @@ class space_problem(problem):
         array_out[:, selected_nodes] = bspline_operations.assemble_scalar_u_force(
             quadrature_rules, prop
         )
-        if nr == 1:
-            array_out = np.ravel(array_out)
-        return array_out
+        return np.ravel(array_out) if nr == 1 else array_out
 
     def assemble_volumetric_force(self, fun: Callable, args: dict = {}) -> np.ndarray:
         "Computes the volume force over a geometry."
@@ -228,9 +227,7 @@ class space_problem(problem):
         array_out = bspline_operations.assemble_scalar_u_force(
             self.part.quadrule_list, prop
         )
-        if nr == 1:
-            array_out = np.ravel(array_out)
-        return array_out
+        return np.ravel(array_out) if nr == 1 else array_out
 
     def _prepare_norm_computation(
         self,
@@ -257,7 +254,7 @@ class space_problem(problem):
                 if not isinstance(knots_ref[i], np.ndarray)
                 else np.copy(knots_ref[i])
             )
-            parametric_weights.append(quadrule._parametric_weights)
+            parametric_weights.append(quadrule.parametric_weights)
 
         quadpts_phy = bspline_operations.interpolate_meshgrid(
             part_ref.quadrule_list, part_ref.ctrlpts, parametric_position
@@ -361,7 +358,7 @@ class space_problem(problem):
 
         array_in = self.assemble_volumetric_force(lambda _: u_at_quadpts, {})
         array_in = np.atleast_2d(array_in)
-        nm = np.size(array_in, axis=0)
+        nr = np.size(array_in, axis=0)
 
         fastdiag = fastdiagonalization()
         fastdiag.compute_space_eigendecomposition(
@@ -373,14 +370,12 @@ class space_problem(problem):
         fastdiag.update_space_eigenvalues(scalar_coefs=(1, 0))
 
         array_out = np.zeros_like(array_in)
-        for i in range(nm):
+        for i in range(nr):
             output = self._solve_linear_system(
                 mass, array_in[i, :], Pfun=fastdiag.apply_scalar_preconditioner
             )
             array_out[i, :] = output["sol"]
-        if nm == 1:
-            array_out = np.ravel(array_out)
-        return array_out
+        return np.ravel(array_out) if nr == 1 else array_out
 
 
 class spacetime_problem(problem):
@@ -444,9 +439,7 @@ class spacetime_problem(problem):
         array_out = bspline_operations.assemble_scalar_u_force(
             self._quadrature_list, prop
         )
-        if nr == 1:
-            array_out = np.ravel(array_out)
-        return array_out
+        return np.ravel(array_out) if nr == 1 else array_out
 
     def _prepare_norm_computation(
         self,
@@ -475,7 +468,7 @@ class spacetime_problem(problem):
                 if not isinstance(knots_ref[i], np.ndarray)
                 else np.copy(knots_ref[i])
             )
-            parametric_weights.append(quadrule._parametric_weights)
+            parametric_weights.append(quadrule.parametric_weights)
 
         # For time variables
         quadrule = gauss_quadrature(
@@ -487,7 +480,7 @@ class spacetime_problem(problem):
             if not isinstance(knots_ref[-1], np.ndarray)
             else np.copy(knots_ref[-1])
         )
-        parametric_weights.append(quadrule._parametric_weights)
+        parametric_weights.append(quadrule.parametric_weights)
 
         quadpts_phy_space = bspline_operations.interpolate_meshgrid(
             part_ref.quadrule_list, part_ref.ctrlpts, list(parametric_position[:-1])

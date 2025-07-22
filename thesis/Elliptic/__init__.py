@@ -268,7 +268,7 @@ def simulate_el(degree, cuts, quad_args=None, preconditioner="jm", linsolver="GM
     patch = singlepatch(geometry, quad_args=quad_args)
 
     # Set Dirichlet boundaries
-    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=2)
+    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=2)
     boundary.add_constraint(
         location_list=[
             {"direction": "y", "face": "top"},
@@ -342,7 +342,7 @@ def simulate_ht(degree, cuts, quad_args=None, preconditioner="fd", linsolver="GM
     patch = singlepatch(geometry, quad_args=quad_args)
 
     # Set Dirichlet boundaries
-    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     boundary.add_constraint(
         location_list=[{"direction": "x,y", "face": "both,both"}],
         constraint_type="dirichlet",

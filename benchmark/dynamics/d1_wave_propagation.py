@@ -30,7 +30,7 @@ geometry = mygeomdl(
 patch = singlepatch(geometry, quad_args={"quadrule": "gs"})
 
 # Create boundary condition
-boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
 
 # Set material
 material = J2plasticity1d({"elastic_modulus": YOUNG})

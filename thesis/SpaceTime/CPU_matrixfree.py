@@ -55,7 +55,9 @@ if RUNSIMU:
             )
 
             # Block boundaries
-            boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nbvars=1)
+            boundary = boundary_condition(
+                nbctrlpts=space_patch.nbctrlpts, nb_vars_per_ctrlpt=1
+            )
             boundary.add_constraint(
                 location_list=[{"direction": "x,y", "face": "both,both"}],
                 constraint_type="dirichlet",

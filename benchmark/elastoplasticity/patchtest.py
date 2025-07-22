@@ -24,7 +24,7 @@ patch = singlepatch(geometry, {"quadrule": "gs"})
 material = J2plasticity3d({"elastic_modulus": 1e2, "poisson_ratio": 0.3})
 
 # Set Dirichlet boundaries
-boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=2)
+boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=2)
 boundary.add_constraint(
     location_list=[
         {"direction": "x", "face": "both"},

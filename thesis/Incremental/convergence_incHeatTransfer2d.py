@@ -32,7 +32,7 @@ def simulate_incremental_bdf(
     material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=2)
 
     # Block boundaries
-    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     boundary.add_constraint(
         location_list=[{"direction": "x,y", "face": "both,both"}],
         constraint_type="dirichlet",
@@ -117,10 +117,18 @@ if RUNSIMU:
                 },
             )
 
-            np.savetxt(f"{FOLDER2DATA}abserrorstag_inc1_{IVP_method}.dat", abserror_inc1)
-            np.savetxt(f"{FOLDER2DATA}relerrorstag_inc1_{IVP_method}.dat", relerror_inc1)
-            np.savetxt(f"{FOLDER2DATA}abserrorstag_inc2_{IVP_method}.dat", abserror_inc2)
-            np.savetxt(f"{FOLDER2DATA}relerrorstag_inc2_{IVP_method}.dat", relerror_inc2)
+            np.savetxt(
+                f"{FOLDER2DATA}abserrorstag_inc1_{IVP_method}.dat", abserror_inc1
+            )
+            np.savetxt(
+                f"{FOLDER2DATA}relerrorstag_inc1_{IVP_method}.dat", relerror_inc1
+            )
+            np.savetxt(
+                f"{FOLDER2DATA}abserrorstag_inc2_{IVP_method}.dat", abserror_inc2
+            )
+            np.savetxt(
+                f"{FOLDER2DATA}relerrorstag_inc2_{IVP_method}.dat", relerror_inc2
+            )
             np.savetxt(f"{FOLDER2DATA}timestag_inc1_{IVP_method}.dat", time_inc_list)
 
 
@@ -140,9 +148,7 @@ for i, IVP_method in enumerate(IVP_method_list):
     if i < 3:
         ax.loglog(nbctrlpts, error_list, **CONFIGLINE_BDF, label=label)
     elif i == 3:
-        ax.loglog(
-            nbctrlpts, error_list, **CONFIGLINE_INC, color="k", label=label
-        )
+        ax.loglog(nbctrlpts, error_list, **CONFIGLINE_INC, color="k", label=label)
 
     slope = np.polyfit(np.log10(nbctrlpts[3:]), np.log10(error_list[3:]), 1)[0]
     slope = round(slope, 1)

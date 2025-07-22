@@ -136,7 +136,9 @@ class mechanical_problem(space_problem):
 
     def _assemble_internal_force(self, stress):
         mf = matrixfree(
-            np.array([quadrule.nbqp for quadrule in self.part.quadrule_list], dtype=int)
+            np.array(
+                [quadrule.nbquadpts for quadrule in self.part.quadrule_list], dtype=int
+            )
         )
         prop = np.einsum(
             "ilk,ljk,k->ijk",

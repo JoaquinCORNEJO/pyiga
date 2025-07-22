@@ -109,7 +109,7 @@ class singlepatch:
                 self.degree[i], self.knotvector[i], quad_args=quad_args
             )
             quadrule.export_quadrature_rules()
-            self.nbqp[i] = quadrule.nbqp
+            self.nbqp[i] = quadrule.nbquadpts
             self.quadrule_list.append(quadrule)
         self.nbqp_total = np.prod(self.nbqp)
 

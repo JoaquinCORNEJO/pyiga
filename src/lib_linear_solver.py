@@ -1,8 +1,8 @@
 from . import *
-from typing import Callable, Tuple, Union, Dict
+from typing import Callable, Tuple, Union, Dict, List
 
 
-def clean_dirichlet(array: np.ndarray, idx_nodes: list):
+def clean_dirichlet(array: np.ndarray, idx_ctrlpts: List[list]):
     """
     Set specified indices of an array to 0 to apply Dirichlet boundary conditions.
 
@@ -18,25 +18,32 @@ def clean_dirichlet(array: np.ndarray, idx_nodes: list):
                                     is greater than the number of dimensions of the array.
     """
     ndim_array = np.ndim(array)
-    ndim_idx = len(idx_nodes)
+    ndim_idx = len(idx_ctrlpts)
     assert ndim_array < 3, "Only for 1d or 2d arrays"
-    if ndim_idx == 1 and ndim_array == 1:
-        array[idx_nodes[0]] = 0.0
-    elif ndim_idx == 1 and ndim_array == 2:
-        array[0, idx_nodes[0]] = 0.0
-    elif ndim_idx > 1:
+    if ndim_idx == 1:
+        if ndim_array == 1:
+            array[idx_ctrlpts[0]] = 0.0
+        elif ndim_array == 2:
+            array[0, idx_ctrlpts[0]] = 0.0
+        else:
+            raise
+    else:
         assert ndim_array >= ndim_idx, "Dimension problem"
         for i in range(ndim_idx):
-            array[i, idx_nodes[i]] = 0.0
+            array[i, idx_ctrlpts[i]] = 0.0
     return
 
 
 class linsolver:
-    def __init__(self, max_iters=100, tolerance=1e-12):
-        self._max_iters = max_iters
-        self._tolerance = tolerance
+
+    _safeguard = 1e-14
+
+    def __init__(self, maxiters=100, tolerance=1e-12):
+        self.maxiters = maxiters
+        self.tolerance = tolerance
         self._Pfun = lambda x: x
-        self._safeguard = 1.0e-14
+        self._dotfun = np.dot
+        self._cleanfun = lambda x, y: x
 
     def eigs(
         self,
@@ -44,7 +51,7 @@ class linsolver:
         Afun: Callable,
         Bfun: Callable = None,
         Pfun: Callable = None,
-        k: int = 6,
+        k: int = 5,
         which: str = "LM",
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -131,9 +138,9 @@ class linsolver:
         assert callable(Afun), "Define a linear operator"
         Pfun = self._Pfun if Pfun is None else Pfun
         assert callable(Pfun), "Define a linear operator"
-        dotfun = np.dot if dotfun is None else dotfun
+        dotfun = self._dotfun if dotfun is None else dotfun
         assert callable(dotfun), "Define a function"
-        cleanfun = (lambda x, y: x) if cleanfun is None else cleanfun
+        cleanfun = self._cleanfun if cleanfun is None else cleanfun
         assert callable(cleanfun), "Define a function"
 
         x = np.zeros_like(b)
@@ -149,7 +156,7 @@ class linsolver:
         rsold = dotfun(r, ptilde)
         res = [1.0]
 
-        for _ in range(self._max_iters):
+        for _ in range(self.maxiters):
             Ap = Afun(p, args)
             cleanfun(Ap, dod)
             alpha = rsold / dotfun(p, Ap)
@@ -158,7 +165,7 @@ class linsolver:
 
             norm_1 = np.linalg.norm(r)
             res.append(norm_1 / norm_0)
-            if norm_1 <= max([self._tolerance * norm_0, self._safeguard]):
+            if norm_1 <= max([self.tolerance * norm_0, self._safeguard]):
                 break
 
             ptilde = Pfun(r)
@@ -217,9 +224,9 @@ class linsolver:
         assert callable(Afun), "Define a linear operator"
         Pfun = self._Pfun if Pfun is None else Pfun
         assert callable(Pfun), "Define a linear operator"
-        dotfun = np.dot if dotfun is None else dotfun
+        dotfun = self._dotfun if dotfun is None else dotfun
         assert callable(dotfun), "Define a function"
-        cleanfun = (lambda x, y: x) if cleanfun is None else cleanfun
+        cleanfun = self._cleanfun if cleanfun is None else cleanfun
         assert callable(cleanfun), "Define a function"
 
         x = np.zeros_like(b)
@@ -234,7 +241,7 @@ class linsolver:
         rsold = dotfun(r, rhat)
         res = [1.0]
 
-        for _ in range(self._max_iters):
+        for _ in range(self.maxiters):
             ptilde = Pfun(p)
             cleanfun(ptilde, dod)
             Aptilde = Afun(ptilde, args)
@@ -245,7 +252,7 @@ class linsolver:
 
             norm_1 = np.linalg.norm(s)
             res.append(norm_1 / norm_0)
-            if norm_1 <= max([self._tolerance * norm_0, self._safeguard]):
+            if norm_1 <= max([self.tolerance * norm_0, self._safeguard]):
                 break
 
             stilde = Pfun(s)
@@ -258,7 +265,7 @@ class linsolver:
 
             norm_1 = np.linalg.norm(r)
             res.append(norm_1 / norm_0)
-            if norm_1 <= max([self._tolerance * norm_0, self._safeguard]):
+            if norm_1 <= max([self.tolerance * norm_0, self._safeguard]):
                 break
 
             rsnew = dotfun(r, rhat)
@@ -311,14 +318,14 @@ class linsolver:
         assert callable(Afun), "Define a linear operator"
         Pfun = self._Pfun if Pfun is None else Pfun
         assert callable(Pfun), "Define a linear operator"
-        dotfun = np.dot if dotfun is None else dotfun
+        dotfun = self._dotfun if dotfun is None else dotfun
         assert callable(dotfun), "Define a function"
-        cleanfun = (lambda x, y: x) if cleanfun is None else cleanfun
+        cleanfun = self._cleanfun if cleanfun is None else cleanfun
         assert callable(cleanfun), "Define a function"
 
         x = np.zeros_like(b)
-        hessenberg = np.zeros((self._max_iters + 1, self._max_iters))
-        old_vectors = np.zeros((self._max_iters + 1, *b.shape))
+        hessenberg = np.zeros((self.maxiters + 1, self.maxiters))
+        old_vectors = np.zeros((self.maxiters + 1, *b.shape))
         new_vectors = np.zeros_like(old_vectors)
 
         r = b.copy()
@@ -329,10 +336,10 @@ class linsolver:
         res = [1.0]
 
         old_vectors[0] = r / norm_0
-        e1 = np.zeros(self._max_iters + 1)
+        e1 = np.zeros(self.maxiters + 1)
         e1[0] = norm_0
 
-        for k in range(self._max_iters):
+        for k in range(self.maxiters):
             new_vectors[k] = Pfun(old_vectors[k])
             cleanfun(new_vectors[k], dod)
             w = Afun(new_vectors[k], args)
@@ -350,7 +357,7 @@ class linsolver:
             ]
             norm_1 = np.linalg.norm(hessenberg[: k + 2, : k + 1] @ y - e1[: k + 2])
             res.append(norm_1 / norm_0)
-            if norm_1 <= max([self._tolerance * norm_0, self._safeguard]):
+            if norm_1 <= max([self.tolerance * norm_0, self._safeguard]):
                 break
         x += sum(new_vectors[j] * y[j] for j in range(k + 1))
 

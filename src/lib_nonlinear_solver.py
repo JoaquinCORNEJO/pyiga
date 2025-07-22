@@ -1,33 +1,37 @@
 from . import *
-import time
 from typing import Callable, Union, Dict, List
+import time
 
 
 class nonlinsolver:
+
+    _safeguard = 1e-14
+    _maxiters_linesearch = 4
+    _anderson_history_size = 3
+
     def __init__(
         self,
-        max_iters: int = 20,
-        outer_tolerance: float = 1e-6,
-        inner_tolerance: float = 1e-8,
-        allow_acceleration: bool = False,
-        allow_linesearch: bool = False,
+        maxiters: int = 20,
+        tolerance: float = 1e-6,
+        linear_solver_tolerance: float = 1e-8,
     ):
-        self._max_iters = max_iters
-        self._outer_tolerance = outer_tolerance
-        self._inner_tolerance = inner_tolerance
-        self._allow_acceleration = allow_acceleration
+        self._max_iters = maxiters
+        self._outer_tolerance = tolerance
+        self._inner_tolerance = linear_solver_tolerance
+        self.modify_solver()
+
+    def modify_solver(
+        self,
+        allow_fixed_point_acceleration: bool = False,
+        allow_linesearch: bool = False,
+        **args,
+    ):
+        self._allow_acceleration = allow_fixed_point_acceleration
         self._allow_linesearch = allow_linesearch
-        self._max_iters_linesearch = 4
-        self._safeguard = 1e-14
+        self._maxiters_linesearch = args.get("iters_linesearch", 4)
+        self._anderson_history_size = args.get("anderson_size", 3)
 
     def _compute_anderson_step(self, R_hist: List, G_hist: List, dotfun: Callable):
-        # mat = np.array([R_history[i] - R_history[0] for i in range(1, anderson_iters)]).T
-        # vec = -R_history[0]
-        # beta = np.linalg.lstsq(mat, vec, rcond=None)[0]
-        # alpha = np.zeros(anderson_iters)
-        # alpha[0] = 1.0 - np.sum(beta)
-        # alpha[1:] = beta
-        # incr_k = np.array(G_history).T @ alpha
         m = len(R_hist)
         mat = np.zeros((m - 1, m - 1))
         vec = np.zeros(m - 1)
@@ -58,7 +62,7 @@ class nonlinsolver:
             return (fun(alpha + h) - fun(alpha - h)) / (2 * h)
 
         alpha0, alpha1, alpha2 = 1e-4, 1.0, 1.0  # Initial guesses
-        for _ in range(self._max_iters_linesearch):
+        for _ in range(self._maxiters_linesearch):
             dphi0 = dersfun(alpha0)
             dphi1 = dersfun(alpha1)
             denom = dphi1 - dphi0
@@ -72,51 +76,55 @@ class nonlinsolver:
 
     def solve(
         self,
-        inital_guess: np.ndarray,
+        primal_guess: np.ndarray,
+        external_force: np.ndarray,
         compute_resisual: Callable,
         solve_linearization: Callable,
-        anderson: int = 1,
         #
         compute_inner_tolerance: Union[None, Callable] = None,
-        dotfun: Union[None, Callable] = None,
+        dotproduct: Union[None, Callable] = None,
         #
-        inner_tolerance_args: Dict = {},
-        linsolv_args: Dict = {},
         residual_args: Dict = {},
+        linsolv_args: Dict = {},
+        inner_tolerance_args: Dict = {},
+        save_data=False,
     ):
         "Solver of the nonlinear problem res(x) = 0."
 
-        dotfun = np.dot if dotfun is None else dotfun
-        assert callable(dotfun), "Define a function"
-        assert anderson > 0, "History size must be positive"
+        dotproduct = np.dot if dotproduct is None else dotproduct
+        assert callable(dotproduct), "Define a function"
 
         # Variables for inner and outer tolerance
         auto_inner_tolerance = callable(compute_inner_tolerance)
         norm_incr, norm_solu = 1.0, 1.0
 
-        solution_k = np.copy(inital_guess)
+        solution_k = np.copy(primal_guess)
         G_history: List = []
         R_history: List = []
-        nonlinear_residual_list = []
-        nonlinear_time_list = []
-        nonlinear_rate_list = []
-        linear_tolerance_list = []
-        solution_history_list = {}
+
+        if save_data:
+            nonlinear_residual_list = []
+            solution_history_list = {}
+            nonlinear_time_list = []
+            nonlinear_rate_list = []
+            linear_tolerance_list = []
 
         start = time.process_time()
         for iteration in range(self._max_iters):
 
             residual, linsolv_args_extra = compute_resisual(
-                solution_k, args=residual_args
+                solution_k, external_force, **residual_args
             )
 
             norm_residual = np.linalg.norm(residual)
             print(f"Nonlinear error: {norm_residual:.3e}")
-            nonlinear_residual_list.append(norm_residual)
-            solution_history_list[f"noniter_{iteration}"] = np.copy(solution_k)
+            if save_data:
+                nonlinear_residual_list.append(norm_residual)
+                solution_history_list[f"noniter_{iteration}"] = np.copy(solution_k)
 
             finish = time.process_time()
-            nonlinear_time_list.append(finish - start)
+            if save_data:
+                nonlinear_time_list.append(finish - start)
 
             if iteration == 0:
                 norm_residual_ref = norm_residual
@@ -139,7 +147,8 @@ class nonlinsolver:
                 inner_tolerance_old = inner_tolerance
             else:
                 inner_tolerance = self._inner_tolerance
-            linear_tolerance_list.append(inner_tolerance)
+            if save_data:
+                linear_tolerance_list.append(inner_tolerance)
 
             incr_k = solve_linearization(
                 residual,
@@ -150,16 +159,18 @@ class nonlinsolver:
 
             if self._allow_acceleration:
                 newx_k = solution_k + incr_k
-                if iteration >= anderson:
+                if iteration >= self._anderson_history_size:
                     R_history.pop(0)
                     G_history.pop(0)
                 R_history.append(incr_k)
                 G_history.append(newx_k)
 
-                if iteration >= anderson:
+                if iteration >= self._anderson_history_size:
                     try:
                         incr_k = (
-                            self._compute_anderson_step(R_history, G_history, dotfun)
+                            self._compute_anderson_step(
+                                R_history, G_history, dotproduct
+                            )
                             - solution_k
                         )
 
@@ -176,13 +187,15 @@ class nonlinsolver:
             solution_k += incr_k
             norm_incr = np.linalg.norm(incr_k)
             norm_solu = np.linalg.norm(solution_k)
-            nonlinear_rate_list.append(norm_incr / norm_solu)
+            if save_data:
+                nonlinear_rate_list.append(norm_incr / norm_solu)
 
         extra_args = dict(
-            nonlinear_residual_list = nonlinear_residual_list,
-            nonlinear_time_list = nonlinear_time_list,
-            nonlinear_rate_list = nonlinear_rate_list,
-            linear_tolerance_list = linear_tolerance_list,
-            solution_history_list = solution_history_list
+            nonlinear_residual_list=nonlinear_residual_list,
+            nonlinear_time_list=nonlinear_time_list,
+            nonlinear_rate_list=nonlinear_rate_list,
+            linear_tolerance_list=linear_tolerance_list,
+            solution_history_list=solution_history_list,
         )
-        return solution_k, extra_args
+
+        return (solution_k, extra_args) if save_data else solution_k

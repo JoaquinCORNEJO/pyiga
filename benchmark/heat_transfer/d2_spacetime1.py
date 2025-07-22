@@ -37,7 +37,143 @@ def power_density(args: dict):
     f = np.zeros((len(x), len(t_list)))
     for i, t in enumerate(t_list):
         f[:, i] = (
-            pi*CST*(-24.0*pi*x**2*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*sin(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0)) - 16.0*pi*x**2*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*sin(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0))/cosh(pi*(x**2 + y**2 - 1.0))**2 + 8.0*pi*x**2*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*cos(2*pi*x*y)/cosh(pi*(x**2 + y**2 - 1.0))**2 + 16.0*pi*x**2*sin(pi*t/2)*sin(2*pi*x*y)*cos(pi*(x**2 + y**2 - 0.0625))/cosh(pi*(x**2 + y**2 - 1.0))**2 + 8.0*pi*x**2*sin(pi*t/2)*cos(pi*(x**2 + y**2 - 0.0625))*cos(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0)) - 16.0*pi*x*y*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*sin(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0)) - 16.0*pi*x*y*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*sin(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0))/cosh(pi*(x**2 + y**2 - 1.0))**2 + 48.0*pi*x*y*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*cos(2*pi*x*y)/cosh(pi*(x**2 + y**2 - 1.0))**2 + 16.0*pi*x*y*sin(pi*t/2)*sin(2*pi*x*y)*cos(pi*(x**2 + y**2 - 0.0625))/cosh(pi*(x**2 + y**2 - 1.0))**2 + 48.0*pi*x*y*sin(pi*t/2)*cos(pi*(x**2 + y**2 - 0.0625))*cos(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0)) - 24.0*pi*y**2*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*sin(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0)) - 32.0*pi*y**2*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*sin(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0))/cosh(pi*(x**2 + y**2 - 1.0))**2 + 8.0*pi*y**2*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*cos(2*pi*x*y)/cosh(pi*(x**2 + y**2 - 1.0))**2 + 32.0*pi*y**2*sin(pi*t/2)*sin(2*pi*x*y)*cos(pi*(x**2 + y**2 - 0.0625))/cosh(pi*(x**2 + y**2 - 1.0))**2 + 8.0*pi*y**2*sin(pi*t/2)*cos(pi*(x**2 + y**2 - 0.0625))*cos(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0)) + 12.0*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*sin(2*pi*x*y)/cosh(pi*(x**2 + y**2 - 1.0))**2 + 4.0*sin(pi*t/2)*sin(pi*(x**2 + y**2 - 0.0625))*cos(2*pi*x*y)*tanh(pi*(x**2 + y**2 - 1.0)) + 12.0*sin(pi*t/2)*sin(2*pi*x*y)*cos(pi*(x**2 + y**2 - 0.0625))*tanh(pi*(x**2 + y**2 - 1.0)) - sin(pi*(x**2 + y**2 - 0.0625))*sin(2*pi*x*y)*cos(pi*t/2)*tanh(pi*(x**2 + y**2 - 1.0)))/2
+            pi
+            * CST
+            * (
+                -24.0
+                * pi
+                * x**2
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * sin(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                - 16.0
+                * pi
+                * x**2
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * sin(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 8.0
+                * pi
+                * x**2
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * cos(2 * pi * x * y)
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 16.0
+                * pi
+                * x**2
+                * sin(pi * t / 2)
+                * sin(2 * pi * x * y)
+                * cos(pi * (x**2 + y**2 - 0.0625))
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 8.0
+                * pi
+                * x**2
+                * sin(pi * t / 2)
+                * cos(pi * (x**2 + y**2 - 0.0625))
+                * cos(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                - 16.0
+                * pi
+                * x
+                * y
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * sin(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                - 16.0
+                * pi
+                * x
+                * y
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * sin(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 48.0
+                * pi
+                * x
+                * y
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * cos(2 * pi * x * y)
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 16.0
+                * pi
+                * x
+                * y
+                * sin(pi * t / 2)
+                * sin(2 * pi * x * y)
+                * cos(pi * (x**2 + y**2 - 0.0625))
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 48.0
+                * pi
+                * x
+                * y
+                * sin(pi * t / 2)
+                * cos(pi * (x**2 + y**2 - 0.0625))
+                * cos(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                - 24.0
+                * pi
+                * y**2
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * sin(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                - 32.0
+                * pi
+                * y**2
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * sin(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 8.0
+                * pi
+                * y**2
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * cos(2 * pi * x * y)
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 32.0
+                * pi
+                * y**2
+                * sin(pi * t / 2)
+                * sin(2 * pi * x * y)
+                * cos(pi * (x**2 + y**2 - 0.0625))
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 8.0
+                * pi
+                * y**2
+                * sin(pi * t / 2)
+                * cos(pi * (x**2 + y**2 - 0.0625))
+                * cos(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                + 12.0
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * sin(2 * pi * x * y)
+                / cosh(pi * (x**2 + y**2 - 1.0)) ** 2
+                + 4.0
+                * sin(pi * t / 2)
+                * sin(pi * (x**2 + y**2 - 0.0625))
+                * cos(2 * pi * x * y)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                + 12.0
+                * sin(pi * t / 2)
+                * sin(2 * pi * x * y)
+                * cos(pi * (x**2 + y**2 - 0.0625))
+                * tanh(pi * (x**2 + y**2 - 1.0))
+                - sin(pi * (x**2 + y**2 - 0.0625))
+                * sin(2 * pi * x * y)
+                * cos(pi * t / 2)
+                * tanh(pi * (x**2 + y**2 - 1.0))
+            )
+            / 2
         )
     return np.ravel(f, order="F")
 
@@ -67,7 +203,7 @@ material.add_ders_conductivity(
 )
 
 # Block boundaries
-boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nbvars=1)
+boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nb_vars_per_ctrlpt=1)
 boundary.add_constraint(
     location_list=[{"direction": "x,y", "face": "both,both"}],
     constraint_type="dirichlet",

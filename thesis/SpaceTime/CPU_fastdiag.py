@@ -27,7 +27,7 @@ if RUNSIMU:
             quadrature.export_quadrature_rules()
 
             boundary_sp = boundary_condition(
-                nbctrlpts=np.array([nctrlpts] * NDIM), nbvars=1
+                nbctrlpts=np.array([nctrlpts] * NDIM), nb_vars_per_ctrlpt=1
             )
             boundary_sp.add_constraint(
                 location_list=[
@@ -40,7 +40,7 @@ if RUNSIMU:
             )
 
             boundary_sptm = boundary_condition(
-                nbctrlpts=np.array([nctrlpts] * (NDIM + 1)), nbvars=1
+                nbctrlpts=np.array([nctrlpts] * (NDIM + 1)), nb_vars_per_ctrlpt=1
             )
             boundary_sptm.add_constraint(
                 location_list=[

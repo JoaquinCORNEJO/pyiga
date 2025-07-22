@@ -38,7 +38,7 @@ if RUNSIMU:
             nbctrlpts_total = np.prod(
                 np.array([quadrature.nbctrlpts for i in range(NDIM)])
             )
-            nbqp_total = np.prod(np.array([quadrature.nbqp for i in range(NDIM)]))
+            nbqp_total = np.prod(np.array([quadrature.nbquadpts for i in range(NDIM)]))
             inv_jac, det_jac = np.ones((NDIM, NDIM, nbqp_total)), np.ones(nbqp_total)
 
             # ------------------

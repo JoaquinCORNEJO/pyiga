@@ -32,14 +32,15 @@ if FIG_CASE == 1:
                         degree_time=degree,
                         nbel_time=2**cuts,
                     )
-                    abserror_list[i + 1, j + 1], relerror_list[i + 1, j + 1] = (
-                        problem_spt.norm_of_error(
-                            temp_spt,
-                            norm_args={
-                                "type": "L2",
-                                "exact_function": exactTemperatureRing_spt,
-                            },
-                        )
+                    (
+                        abserror_list[i + 1, j + 1],
+                        relerror_list[i + 1, j + 1],
+                    ) = problem_spt.norm_of_error(
+                        temp_spt,
+                        norm_args={
+                            "type": "L2",
+                            "exact_function": exactTemperatureRing_spt,
+                        },
                     )
                     np.savetxt(filenameA1, abserror_list)
                     np.savetxt(filenameR1, relerror_list)
@@ -124,48 +125,99 @@ elif FIG_CASE == 2:
     if RUNSIMU:
 
         for quadrule, quadtype in zip(["wq", "wq", "gs"], [1, 2, "leg"]):
-                label_tol = "exact"
-                auto_inner_tolerance = False
+            label_tol = "exact"
+            auto_inner_tolerance = False
             # for label_tol, auto_inner_tolerance in zip(
             #     ["exact", "inexact"], [False, True]
             # ):
 
-                quad_args = {"quadrule": quadrule, "type": quadtype}
-                sufix = f"_{quadrule}_{quadtype}"
-                for i, nbel_time in enumerate(nbel_time_list):
+            quad_args = {"quadrule": quadrule, "type": quadtype}
+            sufix = f"_{quadrule}_{quadtype}"
+            for i, nbel_time in enumerate(nbel_time_list):
 
-                    problem_spt_inc = simulate_spacetime(
+                problem_spt_inc = simulate_spacetime(
+                    degree,
+                    cuts,
+                    powerDensityRing_spt,
+                    degree_time=1,
+                    nbel_time=nbel_time,
+                    quad_args={"quadrule": "gs"},
+                    solve_system=False,
+                )[0]
+
+                start = time.process_time()
+                problem_inc, time_inc, temp_inc = simulate_incremental(
+                    degree,
+                    cuts,
+                    powerDensityRing_inc,
+                    nbel_time=nbel_time,
+                    quad_args=quad_args,
+                )
+                finish = time.process_time()
+
+                time_inc_list[i] = finish - start
+
+                abserror_inc1[i], relerror_inc1[i] = problem_spt_inc.norm_of_error(
+                    np.ravel(temp_inc, order="F"),
+                    norm_args={
+                        "type": "L2",
+                        "exact_function": exactTemperatureRing_spt,
+                    },
+                )
+
+                abserror_inc2[i], relerror_inc2[i] = problem_inc.norm_of_error(
+                    temp_inc[:, -1],
+                    norm_args={
+                        "type": "L2",
+                        "exact_function": exactTemperatureRing_inc,
+                        "exact_args": {"time": time_inc[-1]},
+                    },
+                )
+
+                np.savetxt(f"{FOLDER2DATA}2abserrorstag_inc1{sufix}.dat", abserror_inc1)
+                np.savetxt(f"{FOLDER2DATA}2relerrorstag_inc1{sufix}.dat", relerror_inc1)
+                np.savetxt(f"{FOLDER2DATA}2abserrorstag_inc2{sufix}.dat", abserror_inc2)
+                np.savetxt(f"{FOLDER2DATA}2relerrorstag_inc2{sufix}.dat", relerror_inc2)
+                np.savetxt(f"{FOLDER2DATA}2timestag_inc1{sufix}.dat", time_inc_list)
+
+                for j, degree_spt in enumerate(degree_time_list):
+
+                    start = time.process_time()
+                    problem_spt, time_spt, temp_spt = simulate_spacetime(
                         degree,
                         cuts,
                         powerDensityRing_spt,
-                        degree_time=1,
-                        nbel_time=nbel_time,
-                        quad_args={"quadrule": "gs"},
-                        solve_system=False,
-                    )[0]
-
-                    start = time.process_time()
-                    problem_inc, time_inc, temp_inc = simulate_incremental(
-                        degree,
-                        cuts,
-                        powerDensityRing_inc,
+                        degree_time=degree_spt,
                         nbel_time=nbel_time,
                         quad_args=quad_args,
+                        auto_inner_tolerance=auto_inner_tolerance,
                     )
                     finish = time.process_time()
+                    time_spt_list[j, i] = finish - start
 
-                    time_inc_list[i] = finish - start
-
-                    abserror_inc1[i], relerror_inc1[i] = problem_spt_inc.norm_of_error(
-                        np.ravel(temp_inc, order="F"),
+                    (
+                        abserror_spt1[j, i],
+                        relerror_spt1[j, i],
+                    ) = problem_spt.norm_of_error(
+                        temp_spt,
                         norm_args={
                             "type": "L2",
                             "exact_function": exactTemperatureRing_spt,
                         },
                     )
 
-                    abserror_inc2[i], relerror_inc2[i] = problem_inc.norm_of_error(
-                        temp_inc[:, -1],
+                    (
+                        abserror_spt2[j, i],
+                        relerror_spt2[j, i],
+                    ) = problem_inc.norm_of_error(
+                        np.reshape(
+                            temp_spt,
+                            order="F",
+                            newshape=(
+                                problem_spt.part.nbctrlpts_total,
+                                time_spt.nbctrlpts_total,
+                            ),
+                        )[:, -1],
                         norm_args={
                             "type": "L2",
                             "exact_function": exactTemperatureRing_inc,
@@ -174,82 +226,25 @@ elif FIG_CASE == 2:
                     )
 
                     np.savetxt(
-                        f"{FOLDER2DATA}2abserrorstag_inc1{sufix}.dat", abserror_inc1
+                        f"{FOLDER2DATA}2abserrorstag_spt1{sufix}_{label_tol}.dat",
+                        abserror_spt1,
                     )
                     np.savetxt(
-                        f"{FOLDER2DATA}2relerrorstag_inc1{sufix}.dat", relerror_inc1
+                        f"{FOLDER2DATA}2relerrorstag_spt1{sufix}_{label_tol}.dat",
+                        relerror_spt1,
                     )
                     np.savetxt(
-                        f"{FOLDER2DATA}2abserrorstag_inc2{sufix}.dat", abserror_inc2
+                        f"{FOLDER2DATA}2abserrorstag_spt2{sufix}_{label_tol}.dat",
+                        abserror_spt2,
                     )
                     np.savetxt(
-                        f"{FOLDER2DATA}2relerrorstag_inc2{sufix}.dat", relerror_inc2
+                        f"{FOLDER2DATA}2relerrorstag_spt2{sufix}_{label_tol}.dat",
+                        relerror_spt2,
                     )
-                    np.savetxt(f"{FOLDER2DATA}2timestag_inc1{sufix}.dat", time_inc_list)
-
-                    for j, degree_spt in enumerate(degree_time_list):
-
-                        start = time.process_time()
-                        problem_spt, time_spt, temp_spt = simulate_spacetime(
-                            degree,
-                            cuts,
-                            powerDensityRing_spt,
-                            degree_time=degree_spt,
-                            nbel_time=nbel_time,
-                            quad_args=quad_args,
-                            auto_inner_tolerance=auto_inner_tolerance,
-                        )
-                        finish = time.process_time()
-                        time_spt_list[j, i] = finish - start
-
-                        abserror_spt1[j, i], relerror_spt1[j, i] = (
-                            problem_spt.norm_of_error(
-                                temp_spt,
-                                norm_args={
-                                    "type": "L2",
-                                    "exact_function": exactTemperatureRing_spt,
-                                },
-                            )
-                        )
-
-                        abserror_spt2[j, i], relerror_spt2[j, i] = (
-                            problem_inc.norm_of_error(
-                                np.reshape(
-                                    temp_spt,
-                                    order="F",
-                                    newshape=(
-                                        problem_spt.part.nbctrlpts_total,
-                                        time_spt.nbctrlpts_total,
-                                    ),
-                                )[:, -1],
-                                norm_args={
-                                    "type": "L2",
-                                    "exact_function": exactTemperatureRing_inc,
-                                    "exact_args": {"time": time_inc[-1]},
-                                },
-                            )
-                        )
-
-                        np.savetxt(
-                            f"{FOLDER2DATA}2abserrorstag_spt1{sufix}_{label_tol}.dat",
-                            abserror_spt1,
-                        )
-                        np.savetxt(
-                            f"{FOLDER2DATA}2relerrorstag_spt1{sufix}_{label_tol}.dat",
-                            relerror_spt1,
-                        )
-                        np.savetxt(
-                            f"{FOLDER2DATA}2abserrorstag_spt2{sufix}_{label_tol}.dat",
-                            abserror_spt2,
-                        )
-                        np.savetxt(
-                            f"{FOLDER2DATA}2relerrorstag_spt2{sufix}_{label_tol}.dat",
-                            relerror_spt2,
-                        )
-                        np.savetxt(
-                            f"{FOLDER2DATA}2timestag_spt1{sufix}_{label_tol}.dat",
-                            time_spt_list,
-                        )
+                    np.savetxt(
+                        f"{FOLDER2DATA}2timestag_spt1{sufix}_{label_tol}.dat",
+                        time_spt_list,
+                    )
 
     quadrule, quadtype, label_tol = "wq", 1, "exact"
     sufix = f"_{quadrule}_{quadtype}"
@@ -548,14 +543,15 @@ elif FIG_CASE == 4:
                         end = time.process_time()
                         T3timeList[i, j] = end - start
 
-                        A3errorList[i, j], R3errorList[i, j] = (
-                            problem_spt.norm_of_error(
-                                temp_spt,
-                                norm_args={
-                                    "type": "L2",
-                                    "exact_function": exactTemperatureRing_spt,
-                                },
-                            )
+                        (
+                            A3errorList[i, j],
+                            R3errorList[i, j],
+                        ) = problem_spt.norm_of_error(
+                            temp_spt,
+                            norm_args={
+                                "type": "L2",
+                                "exact_function": exactTemperatureRing_spt,
+                            },
                         )
 
                         np.savetxt(f"{filenameA3}{sufix}", A3errorList)
