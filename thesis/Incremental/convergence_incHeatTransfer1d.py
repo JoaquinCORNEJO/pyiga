@@ -75,7 +75,7 @@ def simulate_ht(degree, cuts, nbel_time, quad_args, ivp="alpha"):
     material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
 
     # Block boundaries
-    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     boundary.add_constraint(
         location_list=[{"direction": "x", "face": "both"}], constraint_type="dirichlet"
     )
@@ -104,9 +104,13 @@ def simulate_ht(degree, cuts, nbel_time, quad_args, ivp="alpha"):
         # Solve problem
         problem._tolerance_nonlinear = 1e-8
         problem.solve_heat_transfer_bdf(
-            temperature, external_heat_source, (time_inc[0], time_inc[-1]), nbel_time, norder=int(ivp[-1])
+            temperature,
+            external_heat_source,
+            (time_inc[0], time_inc[-1]),
+            nbel_time,
+            norder=int(ivp[-1]),
         )
-        
+
     return problem, time_inc, temperature
 
 

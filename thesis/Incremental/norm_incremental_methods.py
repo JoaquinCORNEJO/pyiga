@@ -43,7 +43,7 @@ def norm_of_error(problem: heat_transfer_problem, u_ctrlpts, t_nodes, exact_fun)
         quad_args={"quadtype": "gs", "default_order": 4},
     )
     parametric_position_tm = time_patch.quadrule_list[0].quadpts
-    parametric_weights_tm = time_patch.quadrule_list[0]._parametric_weights
+    parametric_weights_tm = time_patch.quadrule_list[0].parametric_weights
     det_jac_tm = time_patch.det_jac
 
     # Initialize arrays for interpolated and exact solutions

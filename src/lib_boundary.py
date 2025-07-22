@@ -21,7 +21,9 @@ def convert_boundary_str_to_int(dir_list: list, fc_list: list) -> list[list, lis
     face_map = {"left": 0, "front": 0, "bottom": 0, "right": 1, "back": 1, "top": 1}
     dir_list_seperated = re.split(r"[;,\|\s]+", dir_list)
     fc_list_seperated = re.split(r"[;,\|\s]+", fc_list)
-    output_dir = [[dir_map.get(d)] for d in dir_list_seperated]
+    output_dir = [
+        [0, 1, 2, 3] if d == "all" else [dir_map.get(d)] for d in dir_list_seperated
+    ]
     output_facemap = [
         [0, 1] if f == "both" else [face_map.get(f)] for f in fc_list_seperated
     ]
@@ -36,42 +38,49 @@ def create_connectivity_table(nnz_by_direction: np.ndarray) -> np.ndarray:
 
 
 class boundary_condition:
-    def __init__(self, nbctrlpts: np.ndarray = np.array([1, 1, 1]), nbvars: int = 1):
-        self.nbvars: int = nbvars
-        self._nbctrlpts: np.ndarray = nbctrlpts[nbctrlpts > 0]
-        self._nbctrlpts_total: int = np.prod(self._nbctrlpts)
-        self._connectivity_table: np.ndarray = create_connectivity_table(
-            self._nbctrlpts
-        )
+    def __init__(
+        self, nbctrlpts: np.ndarray = np.array([1, 1, 1]), nb_vars_per_ctrlpt: int = 1
+    ):
+        nbctrlpts = np.asarray(nbctrlpts)
+        self.nbctrlpts: np.ndarray = nbctrlpts[nbctrlpts > 0]
+        self.nbvars: int = max(nb_vars_per_ctrlpt, 1)
+        self.ndim: int = len(self.nbctrlpts)
+        self._connectivity_table: np.ndarray = create_connectivity_table(self.nbctrlpts)
         self.ctrlpts_dirichlet: List[Set] = [set() for _ in range(self.nbvars)]
         self.table_dirichlet: np.ndarray = np.zeros(
-            shape=(nbvars, np.max([3, len(nbctrlpts)]), 2), dtype=bool
+            shape=(self.nbvars, self.ndim, 2), dtype=bool
         )
+
+    def _verify_direction_list(self, direction_list):
+        return [[d for d in direction if d < self.ndim] for direction in direction_list]
 
     def _recognize_constraint(
         self, location_list: List[Dict]
     ) -> Tuple[list, np.ndarray]:
         table = np.zeros_like(self.table_dirichlet, dtype=bool)
         nodes = [set() for _ in range(self.nbvars)]
-        for kk, loc in enumerate(location_list):
-            loc_dir_list = str(loc.get("direction")).lower()
-            loc_fc_list = str(loc.get("face")).lower()
+        for idx_var, location in enumerate(location_list):
+            loc_dir_list = str(location.get("direction")).lower()
+            loc_fc_list = str(location.get("face")).lower()
             idx_dir_list, idx_fc_list = convert_boundary_str_to_int(
                 loc_dir_list, loc_fc_list
             )
+            idx_dir_list = self._verify_direction_list(idx_dir_list)
             for idx_dir, idx_fc in zip(idx_dir_list, idx_fc_list):
-                table[kk, idx_dir, idx_fc] = True
+                if not len(idx_dir):
+                    continue
+                table[idx_var][np.ix_(idx_dir, idx_fc)] = True
                 for ii in idx_dir:
                     for jj in idx_fc:
                         if jj == 0:
-                            nodes[kk].update(
+                            nodes[idx_var].update(
                                 np.where(self._connectivity_table[:, ii] == 0)[0]
                             )
                         else:
-                            nodes[kk].update(
+                            nodes[idx_var].update(
                                 np.where(
                                     self._connectivity_table[:, ii]
-                                    == self._nbctrlpts[ii] - 1
+                                    == self.nbctrlpts[ii] - 1
                                 )[0]
                             )
         return nodes, table
@@ -94,13 +103,13 @@ class boundary_condition:
             print("The set of Dirichlet conditions is empty")
         free_nodes = [[] for _ in range(self.nbvars)]
         constraint_nodes = [[] for _ in range(self.nbvars)]
-        for _ in range(self.nbvars):
-            free_nodes[_] = sorted(
+        for i in range(self.nbvars):
+            free_nodes[i] = sorted(
                 list(
-                    set(range(self._nbctrlpts_total)).difference(
-                        self.ctrlpts_dirichlet[_]
+                    set(range(np.prod(self.nbctrlpts))).difference(
+                        self.ctrlpts_dirichlet[i]
                     )
                 )
             )
-            constraint_nodes[_] = sorted(list(self.ctrlpts_dirichlet[_]))
+            constraint_nodes[i] = sorted(list(self.ctrlpts_dirichlet[i]))
         return free_nodes, constraint_nodes

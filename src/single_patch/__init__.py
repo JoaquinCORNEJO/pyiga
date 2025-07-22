@@ -14,3 +14,4 @@ from ..lib_boundary import (
 from ..lib_linear_solver import linsolver, clean_dirichlet
 from ..lib_part import singlepatch
 from ..lib_material import heat_transfer_mat, plasticity
+from ..lib_nonlinear_solver import nonlinsolver

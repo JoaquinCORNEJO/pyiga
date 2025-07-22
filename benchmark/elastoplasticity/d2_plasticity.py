@@ -37,7 +37,7 @@ geometry = mygeomdl({"name": "SQ", "degree": degree, "nbel": nbel}).export_geome
 patch = singlepatch(geometry, quad_args={"quadrule": "gs"})
 
 # Set Dirichlet boundaries
-boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=2)
+boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=2)
 boundary.add_constraint(
     location_list=[
         {"direction": "x", "face": "left"},

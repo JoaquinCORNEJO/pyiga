@@ -164,10 +164,42 @@ def powerDensityRing_inc(args: dict):
             * u4
             * (tanh(u2) ** 2 - 1)
             * (u3)
-            + 4 * CST * x**2 * pi**2 * cos(pi * x * y) * cos(u1) * tanh(u2) * u4 * (u3)
-            + 4 * CST * y**2 * pi**2 * cos(pi * x * y) * cos(u1) * tanh(u2) * u4 * (u3)
-            - 12 * CST * x**2 * pi**2 * sin(pi * x * y) * sin(u1) * tanh(u2) * u4 * (u3)
-            - 18 * CST * y**2 * pi**2 * sin(pi * x * y) * sin(u1) * tanh(u2) * u4 * (u3)
+            + 4
+            * CST
+            * x**2
+            * pi**2
+            * cos(pi * x * y)
+            * cos(u1)
+            * tanh(u2)
+            * u4
+            * (u3)
+            + 4
+            * CST
+            * y**2
+            * pi**2
+            * cos(pi * x * y)
+            * cos(u1)
+            * tanh(u2)
+            * u4
+            * (u3)
+            - 12
+            * CST
+            * x**2
+            * pi**2
+            * sin(pi * x * y)
+            * sin(u1)
+            * tanh(u2)
+            * u4
+            * (u3)
+            - 18
+            * CST
+            * y**2
+            * pi**2
+            * sin(pi * x * y)
+            * sin(u1)
+            * tanh(u2)
+            * u4
+            * (u3)
             - 24
             * CST
             * x
@@ -256,7 +288,14 @@ def powerDensityRing_inc(args: dict):
                 * tanh(u2)
                 * u4
                 * (u3)
-                + CST * y**2 * pi**2 * sin(pi * x * y) * sin(u1) * tanh(u2) * u4 * (u3)
+                + CST
+                * y**2
+                * pi**2
+                * sin(pi * x * y)
+                * sin(u1)
+                * tanh(u2)
+                * u4
+                * (u3)
                 + 4
                 * CST
                 * x
@@ -377,7 +416,14 @@ def powerDensityRing_inc(args: dict):
                 * u4
                 * (tanh(u2) ** 2 - 1)
                 * (u3)
-                + CST * x**2 * pi**2 * sin(pi * x * y) * sin(u1) * tanh(u2) * u4 * (u3)
+                + CST
+                * x**2
+                * pi**2
+                * sin(pi * x * y)
+                * sin(u1)
+                * tanh(u2)
+                * u4
+                * (u3)
                 + 4
                 * CST
                 * y**2
@@ -595,7 +641,7 @@ def simulate_incremental(
     material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=2)
 
     # Block boundaries
-    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     boundary.add_constraint(
         location_list=[{"direction": "x,y", "face": "both,both"}],
         constraint_type="dirichlet",
@@ -666,7 +712,7 @@ def simulate_spacetime(
         )
 
     # Block boundaries
-    boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     boundary.add_constraint(
         location_list=[{"direction": "x,y", "face": "both,both"}],
         constraint_type="dirichlet",

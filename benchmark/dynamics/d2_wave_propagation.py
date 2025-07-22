@@ -64,7 +64,7 @@ geometry = mygeomdl(geo_parameters).export_geometry()
 patch = singlepatch(geometry, quad_args={"quadrule": "gs", "type": "leg"})
 
 # Set Dirichlet boundaries
-boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=2)
+boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=2)
 boundary.add_constraint(
     location_list=[
         {"direction": "y", "face": "top"},

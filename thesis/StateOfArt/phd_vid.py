@@ -399,7 +399,9 @@ elif VIDCASE == 3:  # Welding
         material.add_conductivity(2, is_uniform=True, shape_tensor=2)
 
         # Block boundaries
-        boundary_inc = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+        boundary_inc = boundary_condition(
+            nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1
+        )
         boundary_inc.add_constraint(
             location_list=[{"direction": "y", "face": "top"}],
             constraint_type="dirichlet",

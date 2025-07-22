@@ -1,5 +1,5 @@
 from .__init__ import *
-from typing import List, Tuple, Callable, Union
+from typing import List, Tuple, Callable
 
 
 def find_interpolation_span(
@@ -59,7 +59,7 @@ def eval_ders_basis_COO_format(
 
         for i, (b0, b1) in enumerate(zip(*basis_ders)):
             basis.append([b0, b1])
-            indices_i.append((knot_span - degree + i) % nbctrlpts)
+            indices_i.append(knot_span - degree + i)
             indices_j.append(j)
 
     return np.array(basis), np.array(indices_i), np.array(indices_j)
@@ -128,20 +128,21 @@ class quadrature_rule:
         self._unique_kv: np.ndarray = np.unique(
             self.knotvector[(self.knotvector >= 0.0) & (self.knotvector <= 1.0)]
         )
-        self._nbel: int = len(self._unique_kv) - 1
+        self._nbelem: int = len(self._unique_kv) - 1
+        self._set_variables_to_zero()
 
-        self._parametric_weights: np.ndarray = np.array([])
+    def _set_variables_to_zero(self):
         self._coo_indices: np.ndarray = np.array([])
         self._coo_basis: np.ndarray = np.array([])
         self._coo_weigts: np.ndarray = np.array([])
         self.quadpts: np.ndarray = np.array([])
+        self.nbquadpts: int = 0
         self.basis: List[sp.csr_matrix] = [sp.csr_matrix((0, 0))]
         self.weights: List[sp.csr_matrix] = [sp.csr_matrix((0, 0))]
-        self.nbqp: int = 0
 
     def _set_quadrature_points(self, quadpts: np.ndarray):
         self.quadpts = quadpts
-        self.nbqp = len(quadpts)
+        self.nbquadpts = len(quadpts)
 
     def _set_coo_basis_weights(
         self, basis: np.ndarray, weights: np.ndarray, indices: np.ndarray
@@ -157,7 +158,7 @@ class quadrature_rule:
             basis.append(
                 sp.coo_matrix(
                     (self._coo_basis[:, i], (indi, indj)),
-                    shape=(self.nbctrlpts, self.nbqp),
+                    shape=(self.nbctrlpts, self.nbquadpts),
                 ).tocsr()
             )
 
@@ -165,7 +166,7 @@ class quadrature_rule:
             weights.append(
                 sp.coo_matrix(
                     (self._coo_weights[:, i], (indi, indj)),
-                    shape=(self.nbctrlpts, self.nbqp),
+                    shape=(self.nbctrlpts, self.nbquadpts),
                 ).tocsr()
             )
         self.basis, self.weights = basis, weights
@@ -189,6 +190,7 @@ class gauss_quadrature(quadrature_rule):
         elif self._quadrature_type == "lob":  # Lobatto
             self._order = quad_args.get("default_order", self.degree + 1)
             self._table_function = lobatto_table
+        self.parametric_weights: np.ndarray = np.array([])
 
     def _get_isoparametric_variables(self):
         "Gets the position of Gauss quadrature points in isoparametric space and its weights using known tables"
@@ -211,7 +213,7 @@ class gauss_quadrature(quadrature_rule):
                     + knots[i]
                     + knots[i + 1]
                 )
-                for i in range(self._nbel)
+                for i in range(self._nbelem)
             ]
         )
         super()._set_quadrature_points(quadpts)
@@ -221,10 +223,10 @@ class gauss_quadrature(quadrature_rule):
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         "Gets the weight of Gauss quadrature points in parametric space"
         knots = self._unique_kv
-        self._parametric_weights = np.concatenate(
+        self.parametric_weights = np.concatenate(
             [
                 0.5 * (knots[i + 1] - knots[i]) * self._isoparametric_weights
-                for i in range(self._nbel)
+                for i in range(self._nbelem)
             ]
         )
         basis, indi, indj = eval_ders_basis_COO_format(
@@ -232,8 +234,8 @@ class gauss_quadrature(quadrature_rule):
         )
         nnz = np.shape(basis)[0]
         weights = np.zeros((nnz, 4))
-        weights[:, 0] = basis[:, 0] * self._parametric_weights[indj]
-        weights[:, 3] = basis[:, 1] * self._parametric_weights[indj]
+        weights[:, 0] = basis[:, 0] * self.parametric_weights[indj]
+        weights[:, 3] = basis[:, 1] * self.parametric_weights[indj]
         weights[:, 1] = weights[:, 0]
         weights[:, 2] = weights[:, 3]
         return basis, weights, indi, indj
@@ -253,29 +255,32 @@ class gauss_quadrature(quadrature_rule):
 class weighted_quadrature(quadrature_rule):
     def __init__(self, degree: int, knotvector: np.ndarray, quad_args: dict):
         super().__init__(degree, knotvector)
-        self._quadrature_type = quad_args.get("type", 1)
-        (
-            default_position_rule,
-            default_extra_args,
-        ) = self._get_position_rule_and_defaults(self._quadrature_type)
-        self._position_rule = quad_args.get("position_rule", default_position_rule)
-        self._extra_args = {
-            **default_extra_args,
-            **quad_args.get("rule_parameters", {}),
-        }
+        self._quadrature_type = str(quad_args.get("type", "1"))
+        assert self._quadrature_type in [
+            "1",
+            "2",
+        ], f"Unknown quadrature type: {self._quadrature_type}"
+
+        output: Tuple[str, dict] = self._get_position_rule_and_defaults(
+            self._quadrature_type
+        )
+        default_position_rule, default_extra_args = output
+        self._position_rule: str = quad_args.get("position_rule", default_position_rule)
+        rule_parameters_args: dict = quad_args.get("rule_parameters", {})
+        self._extra_args = default_extra_args | rule_parameters_args
         self._use_other = False
         if degree == 1:
             print(
                 "Becarefull, weighted quadrature is not "
-                "supposed to use linear polynomials. "
-                "Other type of quadrature will be used instead. \n "
+                "supposed to work out with linear polynomials. "
+                "By default, Gauss quadrature will be used. \n "
             )
             self._use_other = True
 
     def _get_position_rule_and_defaults(self, quadrature_type):
-        if quadrature_type == 1:
+        if quadrature_type == "1":
             return "midpoint", {"s": 1, "r": self.degree + 2}
-        elif quadrature_type == 2:
+        elif quadrature_type == "2":
             return "midpoint", {"s": 2, "r": self.degree + 2}
         else:
             raise ValueError(f"Unknown quadrature type: {quadrature_type}")
@@ -344,7 +349,7 @@ class weighted_quadrature(quadrature_rule):
         quadpts.extend(tmp)
 
         # Inner spans
-        for i in range(1, self._nbel - 1):
+        for i in range(1, self._nbelem - 1):
             tmp = algorithm(knots[i], knots[i + 1], 2 + s)
             if not include_boundaries:
                 tmp = tmp[1:-1]
@@ -382,11 +387,11 @@ class weighted_quadrature(quadrature_rule):
         ).tocsr()
 
         # Target space
-        if method == 1:
+        if method == "1":
             # Space S^[p-1]_[r-1]
             degree_target = self.degree - 1
             knotvector_target = self.knotvector[1:-1]
-        elif method == 2:
+        elif method == "2":
             # Space S^[p]_[r-1]
             degree_target = self.degree
             knotvector_target = increase_multiplicity_to_knotvector(

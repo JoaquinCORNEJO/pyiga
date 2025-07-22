@@ -4,9 +4,11 @@ from typing import Union, List, Tuple
 
 
 class matrixfree:
+
+    _tensor_ndim: int = 4
+
     def __init__(self, nclist: list):
-        self._tensor_ndim: int = 4
-        self._tensor_original_shape: list = [
+        self._original_shape: list = [
             int(nclist[i]) if i < len(nclist) else 1 for i in range(self._tensor_ndim)
         ]
         self._tensor_value: Union[None, np.ndarray] = None
@@ -56,10 +58,9 @@ class matrixfree:
         array_in: np.ndarray,
         istranspose: bool = False,
     ) -> np.ndarray:
+        assert array_in.ndim == 1, "Dimension problem"
         assert len(matrix_list) <= self._tensor_ndim, "Dimension problem"
-        self._tensor_value = np.reshape(
-            array_in, self._tensor_original_shape, order="F"
-        )
+        self._tensor_value = np.reshape(array_in, self._original_shape, order="F")
 
         for i, matrix in enumerate(matrix_list):
             self._tensor_matrix_product(matrix, mode=i, istranspose=istranspose)
@@ -139,7 +140,9 @@ class bspline_operations:
         nr_list = np.array(
             [quadrule.nbctrlpts for quadrule in quadrule_list], dtype=int
         )
-        nc_list = np.array([quadrule.nbqp for quadrule in quadrule_list], dtype=int)
+        nc_list = np.array(
+            [quadrule.nbquadpts for quadrule in quadrule_list], dtype=int
+        )
         return nr_list, nc_list
 
     def eval_jacobien(

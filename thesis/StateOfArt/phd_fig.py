@@ -17,7 +17,6 @@ from src.lib_part import singlepatch
 
 
 def plot_2d_geometry(patch: singlepatch, sample_size=101, plotaxis=True):
-
     def plot_mesh(pts, shape, ax):
         "Plots mesh of control points"
 

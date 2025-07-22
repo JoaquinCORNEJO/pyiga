@@ -30,7 +30,7 @@ def simulate(degree, nbel, quad_args):
     material.add_conductivity(1.0, is_uniform=True, shape_tensor=1)
 
     # Create boundary condition
-    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     boundary.add_constraint(
         location_list=[{"direction": "x", "face": "both"}], constraint_type="dirichlet"
     )

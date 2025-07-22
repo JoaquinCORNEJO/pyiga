@@ -82,7 +82,7 @@ def simulate_incremental(degree, cuts, nbel_time):
     material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
 
     # Block boundaries
-    boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     boundary.add_constraint(
         location_list=[{"direction": "x", "face": "both"}], constraint_type="dirichlet"
     )
@@ -125,7 +125,7 @@ def simulate_spacetime(degree, cuts, nbel_time, auto_inner_tolerance=True):
     material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
 
     # Block boundaries
-    boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nbvars=1)
+    boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nb_vars_per_ctrlpt=1)
     boundary.add_constraint(
         location_list=[{"direction": "x", "face": "both"}], constraint_type="dirichlet"
     )

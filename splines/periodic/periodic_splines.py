@@ -17,12 +17,14 @@ def extend_knotvector(kv_in, degree):
     kv_out = np.concatenate((kv_left[:degree][::-1], kv_in, kv_right[:degree]))
     return kv_out
 
+
 idx = 3
 degree = 3
 kv = np.array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
 knotvector = extend_knotvector(kv, degree)
-quadrule = weighted_quadrature(degree, knotvector, 
-    {'type': 1, "rule_parameters": {"s":1, "r": 3}})
+quadrule = weighted_quadrature(
+    degree, knotvector, {"type": 1, "rule_parameters": {"s": 1, "r": 3}}
+)
 quadrule.export_quadrature_rules()
 knots = np.linspace(0, 1, 101)
 basis = quadrule.get_sample_basis(knots)

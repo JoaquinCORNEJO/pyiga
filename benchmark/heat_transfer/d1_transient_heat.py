@@ -5,6 +5,7 @@ from src.lib_material import heat_transfer_mat
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_heat_transfer import heat_transfer_problem
 
+
 def conductivity_property(args: dict):
     temperature = args.get("temperature")
     conductivity = np.zeros(shape=(1, 1, *np.shape(temperature)))
@@ -34,7 +35,7 @@ material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=
 material.add_capacity(1.0, is_uniform=True)
 
 # Create boundary condition
-boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nbvars=1)
+boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
 boundary.add_constraint(
     location_list=[{"direction": "x", "face": "both"}], constraint_type="dirichlet"
 )
@@ -53,7 +54,9 @@ for i, t in enumerate(time_list):
 
 # Solve problem
 temperature = np.zeros_like(external_heat_source)
-problem.solve_heat_transfer(temperature, external_heat_source, time_list, alpha=1, anderson_history_size=2)
+problem.solve_heat_transfer(
+    temperature, external_heat_source, time_list, alpha=1, anderson_history_size=2
+)
 
 # Post-processing
 from src.lib_tensor_maths import bspline_operations
@@ -81,7 +84,13 @@ norder = 1
 # Solve problem
 temperature1 = np.zeros_like(external_heat_source)
 # temperature[-1, :] = 10 # Add if we impose a constant temperature
-problem.solve_heat_transfer_bdf(temperature1, external_heat_source, (time_list[0], time_list[-1]), len(time_list)-1, norder=norder)
+problem.solve_heat_transfer_bdf(
+    temperature1,
+    external_heat_source,
+    (time_list[0], time_list[-1]),
+    len(time_list) - 1,
+    norder=norder,
+)
 
 # Post-processing
 from src.lib_tensor_maths import bspline_operations
