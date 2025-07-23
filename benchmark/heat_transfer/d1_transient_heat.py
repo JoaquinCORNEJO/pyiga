@@ -54,8 +54,9 @@ for i, t in enumerate(time_list):
 
 # Solve problem
 temperature = np.zeros_like(external_heat_source)
+# temperature[-1, 1:] = 1.0
 problem.solve_heat_transfer(
-    temperature, external_heat_source, time_list, alpha=1, anderson_history_size=2
+    temperature, external_heat_source, time_list=time_list, alpha=1.0
 )
 
 # Post-processing
@@ -83,13 +84,14 @@ fig.savefig(f"{RESULT_FOLDER}transient_heat")
 norder = 1
 # Solve problem
 temperature1 = np.zeros_like(external_heat_source)
-# temperature[-1, :] = 10 # Add if we impose a constant temperature
-problem.solve_heat_transfer_bdf(
+# temperature1[-1, 1:] = 1.0 # Add if we impose a constant temperature
+problem.solve_heat_transfer(
     temperature1,
     external_heat_source,
-    (time_list[0], time_list[-1]),
-    len(time_list) - 1,
+    tspan=(time_list[0], time_list[-1]),
+    nsteps=len(time_list) - 1,
     norder=norder,
+    type_solver="bdf"
 )
 
 # Post-processing

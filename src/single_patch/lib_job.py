@@ -147,6 +147,58 @@ class problem:
 
         return u_exact, uders_exact
 
+    def select_outer_tolerance(
+        self,
+        phys_patch: Union[None, singlepatch],
+        time_patch: Union[None, singlepatch] = None,
+        factor: float = 0.5,
+    ) -> float:
+
+        # Find the mesh-parameter
+        mp_part = phys_patch._compute_global_mesh_parameter()
+        mp_time = (
+            time_patch._compute_global_mesh_parameter()
+            if time_patch is not None
+            else mp_part
+        )
+        mp_global = max(mp_part, mp_time)
+
+        # Find the degree
+        deg_part = phys_patch.degree
+        deg_time = time_patch.degree if time_patch is not None else deg_part
+        deg_global = min(min(deg_part), deg_time)
+
+        return factor * (0.5**deg_global) * mp_global
+
+    def select_inner_tolerance(
+        self,
+        norm_residual: float,
+        norm_residual_old: float,
+        inner_tolerance_old: float,
+        inner_tolerance_args: dict,
+    ) -> float:
+        threshold_ref: float = 1.0
+        solver_kind: str = str(
+            inner_tolerance_args.get("solver_kind", "picard")
+        ).lower()
+        assert solver_kind in ["picard", "newton"], "Method unknown"
+        initial_tolerance: float = inner_tolerance_args.get("initial_tolerance", 0.5)
+        if solver_kind == "picard":
+            threshold_ref = inner_tolerance_args.get("static", 0.25)
+        elif solver_kind == "newton":
+            gamma_kr = inner_tolerance_args.get("coefficient", 1.0)
+            omega_kr = inner_tolerance_args.get("exponential", 2.0)
+            if (
+                norm_residual is not None
+                and inner_tolerance_old is not None
+                and norm_residual_old is not None
+            ):
+                ratio = norm_residual / norm_residual_old
+                eps_kr_k = gamma_kr * np.power(ratio, omega_kr)
+                eps_kr_r = gamma_kr * np.power(inner_tolerance_old, omega_kr)
+                threshold_ref = min(eps_kr_k, eps_kr_r) if eps_kr_r > 0.1 else eps_kr_k
+        return max(self._tolerance_linear, min(initial_tolerance, threshold_ref))
+
 
 class space_problem(problem):
     def __init__(
@@ -371,7 +423,7 @@ class space_problem(problem):
 
         array_out = np.zeros_like(array_in)
         for i in range(nr):
-            output = self._solve_linear_system(
+            output = super()._solve_linear_system(
                 mass, array_in[i, :], Pfun=fastdiag.apply_scalar_preconditioner
             )
             array_out[i, :] = output["sol"]

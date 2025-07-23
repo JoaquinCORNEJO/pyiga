@@ -61,12 +61,13 @@ def simulate_incremental_bdf(
         )
     else:
         assert ivp in ["BDF1", "BDF2", "BDF3", "BDF4"], "Invalid method"
-        problem_inc.solve_heat_transfer_bdf(
+        problem_inc.solve_heat_transfer(
             temperature_inc,
             external_force,
-            (time_inc[0], time_inc[-1]),
-            nbel_time,
+            tspan=(time_inc[0], time_inc[-1]),
+            nsteps=nbel_time,
             norder=int(ivp[-1]),
+            type_solver="bdf"
         )
 
     return problem_inc, time_inc, temperature_inc

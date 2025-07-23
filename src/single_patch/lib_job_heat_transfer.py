@@ -33,11 +33,15 @@ class heat_transfer_problem(space_problem):
         self._capacity_property = None
         self._conductivity_property = None
 
-    def compute_mf_capacity(self, array_in: np.ndarray, args: dict = {}) -> np.ndarray:
-        args = self._verify_fun_args(args)
-        args = {"temperature": np.ones(self.part.nbqp_total)} | args
+    def compute_mf_capacity(
+        self, array_in: np.ndarray, mf_args: dict = {}
+    ) -> np.ndarray:
+        mf_args = self._verify_fun_args(mf_args)
+        mf_args = {"temperature": np.ones(self.part.nbqp_total)} | mf_args
         if self._capacity_property is None:
-            self._capacity_property = self.material.capacity(args) * self.part.det_jac
+            self._capacity_property = (
+                self.material.capacity(mf_args) * self.part.det_jac
+            )
             self._scalar_mean_capacity = [np.mean(self._capacity_property)]
         array_out = bspline_operations.compute_mf_scalar_u_v(
             self.part.quadrule_list,
@@ -48,15 +52,15 @@ class heat_transfer_problem(space_problem):
         return array_out
 
     def compute_mf_conductivity(
-        self, array_in: np.ndarray, args: dict = {}
+        self, array_in: np.ndarray, mf_args: dict = {}
     ) -> np.ndarray:
-        args = self._verify_fun_args(args)
-        args = {"temperature": np.ones(self.part.nbqp_total)} | args
+        mf_args = self._verify_fun_args(mf_args)
+        mf_args = {"temperature": np.ones(self.part.nbqp_total)} | mf_args
         if self._conductivity_property is None:
             self._conductivity_property = np.einsum(
                 "ilk,lmk,jmk,k->ijk",
                 self.part.inv_jac,
-                self.material.conductivity(args),
+                self.material.conductivity(mf_args),
                 self.part.inv_jac,
                 self.part.det_jac,
                 optimize=True,
@@ -85,43 +89,41 @@ class heat_transfer_problem(space_problem):
         temperature: np.ndarray,
         flux: np.ndarray,
         scalar_coefs: tuple,
-        args: dict = {},
+        mf_args: dict = {},
     ) -> np.ndarray:
         assert (
             scalar_coefs is not None
         ), "Define contribution from capacity and conductivity"
         array_out = 0.0
         if scalar_coefs[0] != 0:
-            array_out += scalar_coefs[0] * self.compute_mf_capacity(flux, args)
+            array_out += scalar_coefs[0] * self.compute_mf_capacity(flux, mf_args)
         if scalar_coefs[1] != 0:
             array_out += scalar_coefs[1] * self.compute_mf_conductivity(
-                temperature, args
+                temperature, mf_args
             )
         return array_out
 
-    def _compute_heat_transfer_residual(
-        self,
-        temperature: np.ndarray,
-        flux: np.ndarray,
-        external_force: np.ndarray,
-        scalar_coefs: tuple,
+    def _compute_residual(
+        self, temperature: np.ndarray, external_force: np.ndarray, **kwargs
     ) -> Tuple[np.ndarray, dict]:
+
+        flux: np.ndarray = kwargs.get("flux")
+        scalar_coefs: tuple = kwargs.get("scalar_coefs")
 
         if self.update_properties:
             self.clear_properties()
-        args = {"temperature": self.interpolate_temperature(temperature)}
+        mf_args = {"temperature": self.interpolate_temperature(temperature)}
         residual = external_force - self._assemble_internal_force(
-            temperature, flux, scalar_coefs, args
+            temperature, flux, scalar_coefs, mf_args
         )
         clean_dirichlet(residual, self.sp_constraint_ctrlpts)
-        return residual, args
+        return residual, mf_args
 
-    def _linearized_heat_trasfer_solver(
-        self, array_in: np.ndarray, scalar_coefs: tuple, args: dict = {}
-    ) -> np.ndarray:
-        assert (
-            scalar_coefs is not None
-        ), "Define contribution from capacity and conductivity"
+    def _solve_linearized_system(self, array_in: np.ndarray, **kwargs) -> np.ndarray:
+
+        mf_args: dict = kwargs.get("mf_args")
+        scalar_coefs: tuple = kwargs.get("scalar_coefs")
+        inner_tolerance: float = kwargs.get("inner_tolerance")
 
         def compute_mf_tangent(array_in, args):
             array_out = 0.0
@@ -140,200 +142,58 @@ class heat_transfer_problem(space_problem):
             )
 
         self.preconditioner.update_space_eigenvalues(scalar_coefs=scalar_coefs)
-        output = self._solve_linear_system(
+        output = super()._solve_linear_system(
             compute_mf_tangent,
             array_in,
             Pfun=self.preconditioner.apply_scalar_preconditioner,
             cleanfun=clean_dirichlet,
             dod=self.sp_constraint_ctrlpts,
-            args=args,
+            args=mf_args,
+            tolerance=inner_tolerance,
         )
         self._linear_residual_list.append(output["res"])
         return output["sol"]
 
+    def _update_transient_variables(self, temperature, increment, **kwargs):
+        assert isinstance(temperature, np.ndarray), "Define a numpy object"
+        assert isinstance(increment, np.ndarray), "Define a numpy object"
+        # Get other variables
+        flux = kwargs.get("flux", 0.0)
+        flux_factor = kwargs.get("flux_factor", 1.0)
+        # Update
+        temperature += increment
+        flux += increment * flux_factor
+        kwargs = kwargs | {"flux": flux}
+
     def solve_heat_transfer(
-        self,
-        temperature_list: np.ndarray,
-        external_force_list: np.ndarray,
-        time_list: Union[None, np.ndarray] = None,
-        alpha: float = 0.5,
-        anderson_history_size: int = 1,
+        self, temperature_list: np.ndarray, external_force_list: np.ndarray, **kwargs
     ):
 
         # Decide if it is a linear or nonlinear problem
         self.update_properties = not (
             self.material._has_uniform_capacity
             and self.material._has_uniform_conductivity
+        )
+
+        nonlinsolv = nonlinsolver(
+            maxiters=self._maxiters_nonlinear,
+            tolerance=self._tolerance_nonlinear,
+            linear_solver_tolerance=self._tolerance_linear,
         )
 
         if external_force_list.ndim == 1 and temperature_list.ndim == 1:
 
-            # This is a steady heat problem
-            for j in range(self._maxiters_nonlinear):
-
-                residual, args = self._compute_heat_transfer_residual(
-                    temperature_list,
-                    None,
-                    external_force_list,
-                    scalar_coefs=(0, 1),
-                )
-
-                norm_residual = np.linalg.norm(residual)
-                if j == 0:
-                    ref_norm_residual = norm_residual
-                print(f"Non linear error: {norm_residual:.5e}")
-                if norm_residual <= max(
-                    self._safeguard, self._tolerance_nonlinear * ref_norm_residual
-                ):
-                    break
-
-                increment = self._linearized_heat_trasfer_solver(
-                    residual, scalar_coefs=(0, 1), args=args
-                )
-                temperature_list += increment
-
-        else:
-
-            # This is a transient problem
-            assert len(time_list) >= 2, "At least 2 steps required"
-            constraint_ctrlpts = self.sp_constraint_ctrlpts
-            Fext = np.copy(external_force_list[:, 0])
-            d_n0 = np.copy(temperature_list[:, 0])
-            v_n0 = np.zeros_like(d_n0)
-            v_n0[constraint_ctrlpts[0]] = (
-                temperature_list[constraint_ctrlpts[0], 1]
-                - temperature_list[constraint_ctrlpts[0], 0]
-            ) / (time_list[1] - time_list[0])
-
-            residual, args = self._compute_heat_transfer_residual(
-                d_n0,
-                v_n0,
-                Fext,
-                scalar_coefs=(1, 1),
-            )
-            v_n0 += self._linearized_heat_trasfer_solver(
-                residual, scalar_coefs=(1, 0), args=args
+            print(f"Steady heat transfer solver")
+            nonlinsolv.solve(
+                temperature_list,
+                external_force_list,
+                self._compute_residual,
+                self._solve_linearized_system,
+                residual_args={"scalar_coefs": (0, 1)},
+                linsolv_args={"scalar_coefs": (0, 1)},
             )
 
-            for i in range(1, len(time_list)):
-
-                # Get delta time
-                dt = time_list[i] - time_list[i - 1]
-
-                # Get values of last step
-                d_n0 = np.copy(temperature_list[:, i - 1])
-                if i > 1:
-                    v_n0 = np.copy(vj_n1)
-
-                # Predict values of new step
-                Fext = np.copy(external_force_list[:, i])
-                dj_n1 = d_n0 + (1 - alpha) * dt * v_n0
-                vj_n1 = np.zeros_like(d_n0)
-
-                # Apply boundary conditions
-                vj_n1[constraint_ctrlpts[0]] = (
-                    temperature_list[constraint_ctrlpts[0], i]
-                    - dj_n1[constraint_ctrlpts[0]]
-                ) / (alpha * dt)
-                dj_n1[constraint_ctrlpts[0]] = temperature_list[
-                    constraint_ctrlpts[0], i
-                ]
-
-                # Anderson acceleration data
-                G_history = np.zeros((*np.shape(dj_n1), anderson_history_size))
-                R_history = np.zeros((*np.shape(dj_n1), anderson_history_size))
-
-                print(f"Step: {i}")
-                for j in range(self._maxiters_nonlinear):
-
-                    residual, args = self._compute_heat_transfer_residual(
-                        dj_n1,
-                        vj_n1,
-                        Fext,
-                        scalar_coefs=(1, 1),
-                    )
-                    self._solution_history_list[f"step_{i}_noniter_{j}"] = np.copy(
-                        dj_n1
-                    )
-
-                    norm_residual = np.linalg.norm(residual)
-                    if j == 0:
-                        ref_norm_residual = norm_residual
-                    print(f"Non linear error: {norm_residual:.5e}")
-                    if norm_residual <= max(
-                        self._safeguard, self._tolerance_nonlinear * ref_norm_residual
-                    ):
-                        break
-
-                    increment = self._linearized_heat_trasfer_solver(
-                        residual, scalar_coefs=(1, alpha * dt), args=args
-                    )
-
-                    new_velocity = vj_n1 + increment
-                    if j < anderson_history_size:
-                        R_history[..., j] = increment
-                        G_history[..., j] = new_velocity
-                    else:
-                        R_history = np.roll(R_history, -1, axis=1)
-                        G_history = np.roll(G_history, -1, axis=1)
-                        R_history[..., -1] = increment
-                        G_history[..., -1] = new_velocity
-
-                    if anderson_history_size > 0 and j >= anderson_history_size:
-                        A = R_history[..., 1:] - R_history[..., [0]]
-                        b = -R_history[..., 0]
-                        try:
-                            c = np.linalg.lstsq(A, b, rcond=None)[0]
-                            beta = np.zeros(anderson_history_size)
-                            beta[0] = 1.0 - np.sum(c)
-                            beta[1:] = c
-                            increment = (
-                                np.einsum("...i,i->...", G_history, beta) - vj_n1
-                            )
-                        except np.linalg.LinAlgError:
-                            print(
-                                "LinAlgError in Anderson acceleration, fallback to simple increment"
-                            )
-
-                    vj_n1 += increment
-                    dj_n1 += alpha * dt * increment
-
-                # Save data for next step
-                temperature_list[:, i] = np.copy(dj_n1)
-
-    def solve_heat_transfer_bdf(
-        self,
-        temperature_list: np.ndarray,
-        external_force_list: np.ndarray,
-        tspan: Tuple[float],
-        nsteps: int,
-        norder: int = 1,
-    ):
-        """
-        Solves an heat transfer equation using the Backward Differentiation Formula (BDF) method.
-
-        Parameters:
-        temperature_list : Array of initial temperature values at control points.
-        external_force_list : Array of external forces applied at control points.
-        tspan : A tuple containing the start and end times, (t0, tf).
-        nsteps : Number of time steps to use in the solution.
-        norder : Order of the BDF method (default is 1).
-        """
-        # Check input parameters
-        assert norder in [1, 2, 3, 4], "Order not supported"
-        assert nsteps >= 2, "At least 2 steps required"
-        assert (
-            np.size(temperature_list, 1) >= nsteps + 1
-        ), "Temperature list must have enough columns for time steps"
-
-        # Decide if it is a linear or nonlinear problem
-        self.update_properties = not (
-            self.material._has_uniform_capacity
-            and self.material._has_uniform_conductivity
-        )
-
-        # Get inactive control points
-        constraint_ctrlpts = self.sp_constraint_ctrlpts
+            return
 
         def predict_temperature(
             histtemp: List[np.ndarray],
@@ -363,39 +223,79 @@ class heat_transfer_problem(space_problem):
             parameters = [1.0, 2.0 / 3.0, 6.0 / 11.0, 12.0 / 25.0]
             return parameters[norder - 1]
 
+        # This is a transient problem
+        type_solver = kwargs.get("type_solver", "alpha")
+        assert type_solver in ["alpha", "bdf"], "Method unknown"
+
+        if type_solver == "alpha":
+            # Get variables for alpha (or theta) method
+            time_list: Union[np.ndarray, list] = kwargs.get("time_list")
+            alpha: float = kwargs.get("alpha", 1.0)
+            assert all(
+                x is not None for x in [time_list, alpha]
+            ), "time_list or alpha are not defined"
+            nsteps = len(time_list) - 1
+        else:
+            # Get variables for BDF (or theta) method
+            tspan: Tuple[float] = kwargs.get("tspan")
+            nsteps: int = kwargs.get("nsteps")
+            norder: int = kwargs.get("norder", 1)
+            assert all(
+                x is not None for x in [tspan, nsteps, norder]
+            ), "tspan or nsteps or norder are not defined"
+
+        assert nsteps >= 1, "At least 1 step required"
+
+        print(f"Transient heat transfer solver")
+
+        # Get inactive control points
+        constraint_ctrlpts = self.sp_constraint_ctrlpts
+
         # Initialize time and solution arrays
-        dt = (tspan[1] - tspan[0]) / nsteps
-        Fext = np.copy(external_force_list[:, 0])
-        d_n0 = np.copy(temperature_list[:, 0])
-        v_n0 = np.zeros_like(d_n0)
+        dt = (
+            time_list[1] - time_list[0]
+            if type_solver == "alpha"
+            else (tspan[1] - tspan[0]) / nsteps
+        )
+        v_n0 = np.zeros_like(temperature_list[:, 0])
         v_n0[constraint_ctrlpts[0]] = (
             temperature_list[constraint_ctrlpts[0], 1]
             - temperature_list[constraint_ctrlpts[0], 0]
         ) / dt
 
-        residual, args = self._compute_heat_transfer_residual(
-            d_n0,
-            v_n0,
-            Fext,
+        residual, mf_args = self._compute_residual(
+            temperature_list[:, 0],
+            external_force_list[:, 0],
+            flux=v_n0,
             scalar_coefs=(1, 1),
         )
-        v_n0 += self._linearized_heat_trasfer_solver(
-            residual, scalar_coefs=(1, 0), args=args
+        v_n0 += self._solve_linearized_system(
+            residual, scalar_coefs=(1, 0), mf_args=mf_args
         )
 
         # Main loop to solve the ODE using the BDF method
         for i in range(1, nsteps + 1):
 
-            # Get current order and ensure it does not exceed norder
-            currorder = min(i, norder)
+            if type_solver == "alpha":
+                # Get delta time
+                dt = time_list[i] - time_list[i - 1]
+                # Predict current temperature
+                dj_n1 = np.copy(temperature_list[:, i - 1])
+            else:
+                # Get current order and ensure it does not exceed norder
+                currorder = min(i, norder)
+                alpha = select_parameter(currorder)
+                # Get values of last steps
+                d_list = select_snapshots(i, temperature_list, currorder)
+                # Predict current temperature
+                dj_n1 = predict_temperature(d_list, currorder)
 
-            # Get values of last steps
-            d_list = select_snapshots(i, temperature_list, currorder)
+            # Update
+            dj_n1 += (1 - alpha) * dt * v_n0 if i == 1 else (1 - alpha) * dt * vj_n1
 
             # Predict values of new step
-            Fext = np.copy(external_force_list[:, i])
-            dj_n1 = predict_temperature(d_list, currorder)
-            vj_n1 = np.zeros_like(d_n0)
+            Fext = external_force_list[:, i]
+            vj_n1 = np.zeros_like(Fext)
 
             # Apply boundary conditions
             vj_n1[constraint_ctrlpts[0]] = (
@@ -404,37 +304,23 @@ class heat_transfer_problem(space_problem):
             ) / dt
             dj_n1[constraint_ctrlpts[0]] = temperature_list[constraint_ctrlpts[0], i]
 
-            print(f"Step: {i}")
-            for j in range(self._maxiters_nonlinear):
-
-                residual, args = self._compute_heat_transfer_residual(
-                    dj_n1,
-                    vj_n1,
-                    Fext,
-                    scalar_coefs=(1, 1),
-                )
-                self._solution_history_list[f"step_{i}_noniter_{j}"] = np.copy(dj_n1)
-
-                norm_residual = np.linalg.norm(residual)
-                if j == 0:
-                    ref_norm_residual = norm_residual
-                print(f"Non linear error: {norm_residual:.5e}")
-                if norm_residual <= max(
-                    self._safeguard, self._tolerance_nonlinear * ref_norm_residual
-                ):
-                    break
-
-                parameter = select_parameter(currorder)
-                increment = self._linearized_heat_trasfer_solver(
-                    residual,
-                    scalar_coefs=(1, parameter * dt),
-                    args=args,
-                )
-                vj_n1 += increment
-                dj_n1 += dt * parameter * increment
-
-            # Save data for next step
+            print(f"Time step: {i}")
+            residual_args = {
+                "scalar_coefs": (1.0, 1.0),
+                "flux": vj_n1,
+                "flux_factor": 1.0 / (alpha * dt),
+            }
+            nonlinsolv.solve(
+                dj_n1,
+                Fext,
+                self._compute_residual,
+                self._solve_linearized_system,
+                update_variables=self._update_transient_variables,
+                residual_args=residual_args,
+                linsolv_args={"scalar_coefs": (1.0 / (alpha * dt), 1)},
+            )
             temperature_list[:, i] = np.copy(dj_n1)
+            vj_n1 = np.copy(residual_args.get("flux"))
 
 
 class st_heat_transfer_problem(spacetime_problem):
@@ -473,14 +359,14 @@ class st_heat_transfer_problem(spacetime_problem):
         self._ders_conductivity_property = None
 
     def compute_mf_sptm_capacity(
-        self, array_in: np.ndarray, args: dict = {}
+        self, array_in: np.ndarray, mf_args: dict = {}
     ) -> np.ndarray:
-        args = self._verify_fun_args(args)
-        args = {
+        mf_args = self._verify_fun_args(mf_args)
+        mf_args = {
             "temperature": np.ones(self.part.nbqp_total * self.time.nbqp_total)
-        } | args
+        } | mf_args
         if self._capacity_property is None:
-            self._capacity_property = self.material.capacity(args) * np.kron(
+            self._capacity_property = self.material.capacity(mf_args) * np.kron(
                 np.ones_like(self.time.det_jac), self.part.det_jac
             )
             self._scalar_mean_capacity = [np.mean(self._capacity_property)]
@@ -495,19 +381,19 @@ class st_heat_transfer_problem(spacetime_problem):
         return array_out
 
     def compute_mf_sptm_ders_capacity(
-        self, array_in: np.ndarray, args: dict = {}
+        self, array_in: np.ndarray, mf_args: dict = {}
     ) -> np.ndarray:
-        args = self._verify_fun_args(args)
-        args = {
+        mf_args = self._verify_fun_args(mf_args)
+        mf_args = {
             "temperature": np.ones(self.part.nbqp_total * self.time.nbqp_total),
             "gradient": np.ones(
                 (self.part.ndim + 1, self.part.nbqp_total * self.time.nbqp_total)
             ),
-        } | args
-        grad_temperature = args["gradient"]
+        } | mf_args
+        grad_temperature = mf_args["gradient"]
         if self._ders_capacity_property is None:
             self._ders_capacity_property = (
-                self.material.ders_capacity(args)
+                self.material.ders_capacity(mf_args)
                 * grad_temperature[-1, :]
                 * np.kron(self.time.det_jac, self.part.det_jac)
             )
@@ -522,14 +408,14 @@ class st_heat_transfer_problem(spacetime_problem):
         return array_out
 
     def compute_mf_sptm_conductivity(
-        self, array_in: np.ndarray, args: dict = {}
+        self, array_in: np.ndarray, mf_args: dict = {}
     ) -> np.ndarray:
-        args = self._verify_fun_args(args)
-        args = {
+        mf_args = self._verify_fun_args(mf_args)
+        mf_args = {
             "temperature": np.ones(self.part.nbqp_total * self.time.nbqp_total)
-        } | args
+        } | mf_args
         if self._conductivity_property is None:
-            tmp1 = self.material.conductivity(args) * np.kron(
+            tmp1 = self.material.conductivity(mf_args) * np.kron(
                 self.time.det_jac, self.part.det_jac
             )
             tmp1_reshaped = np.reshape(
@@ -565,20 +451,20 @@ class st_heat_transfer_problem(spacetime_problem):
         return array_out
 
     def compute_mf_sptm_ders_conductivity(
-        self, array_in: np.ndarray, args: dict = {}
+        self, array_in: np.ndarray, mf_args: dict = {}
     ) -> np.ndarray:
-        args = self._verify_fun_args(args)
-        args = {
+        mf_args = self._verify_fun_args(mf_args)
+        mf_args = {
             "temperature": np.ones(self.part.nbqp_total * self.time.nbqp_total),
             "gradient": np.ones(
                 (self.part.ndim + 1, self.part.nbqp_total * self.time.nbqp_total)
             ),
-        } | args
-        grad_temperature = args["gradient"]
+        } | mf_args
+        grad_temperature = mf_args["gradient"]
         if self._ders_conductivity_property is None:
             tmp1 = np.einsum(
                 "ijk,jk,k->ik",
-                self.material.ders_conductivity(args),
+                self.material.ders_conductivity(mf_args),
                 grad_temperature[:-1, :],
                 np.kron(self.time.det_jac, self.part.det_jac),
                 optimize=True,
@@ -633,18 +519,17 @@ class st_heat_transfer_problem(spacetime_problem):
             uders_interp, newshape=(self.part.ndim + 1, -1), order="F"
         )
 
-    def _linearized_spacetime_heat_transfer_solver(
-        self,
-        external_force: np.ndarray,
-        args: dict = {},
-        use_picard: bool = True,
-        inner_tolerance: bool = None,
-    ) -> np.ndarray:
+    def _solve_linearized_system(self, array_in: np.ndarray, **kwargs) -> np.ndarray:
+
+        mf_args: dict = kwargs.get("mf_args")
+        inner_tolerance: float = kwargs.get("inner_tolerance")
+        solver_kind: str = str(kwargs.get("solver_kind", "picard")).lower()
+
         def compute_mf_tangent(array_in, args):
             array_out = self.compute_mf_sptm_capacity(
                 array_in, args
             ) + self.compute_mf_sptm_conductivity(array_in, args)
-            if not use_picard:
+            if solver_kind == "newton":
                 array_out += self.compute_mf_sptm_ders_capacity(
                     array_in, args
                 ) + self.compute_mf_sptm_ders_conductivity(array_in, args)
@@ -656,19 +541,19 @@ class st_heat_transfer_problem(spacetime_problem):
                 advection_corrector=self._scalar_mean_capacity,
             )
         self.preconditioner.update_space_eigenvalues(scalar_coefs=(0, 1))
-        output = self._solve_linear_system(
+        output = super()._solve_linear_system(
             compute_mf_tangent,
-            external_force,
+            array_in,
             Pfun=self.preconditioner.apply_spacetime_scalar_preconditioner,
             cleanfun=clean_dirichlet,
             dod=self.sptm_constraint_ctrlpts,
-            args=args,
+            args=mf_args,
             tolerance=inner_tolerance,
         )
         self._linear_residual_list.append(output["res"])
         return output["sol"]
 
-    def _compute_heat_transfer_residual(
+    def _compute_residual(
         self,
         temperature: np.ndarray,
         external_force: np.ndarray,
@@ -689,46 +574,14 @@ class st_heat_transfer_problem(spacetime_problem):
         self,
         temperature: np.ndarray,
         external_force: np.ndarray,
-        anderson_history_size: int = 1,
-        use_picard: bool = True,
         auto_inner_tolerance: bool = True,
         auto_outer_tolerance: bool = False,
-        nonlinear_args: dict = {},
+        inner_tolerance_args: dict = {"solver_kind": "picard"},
     ):
-        def select_outer_tolerance(
-            problem: spacetime_problem, factor: float = 0.5
-        ) -> float:
-            meshparameter_part = problem.part._compute_global_mesh_parameter()
-            meshparameter_time = problem.time._compute_global_mesh_parameter()
-            meshsize = max(meshparameter_part, meshparameter_time)
-            degree = min(min(problem.part.degree), problem.time.degree)
-            outer_tolerance = factor * (0.5**degree) * meshsize
-            return outer_tolerance
 
-        def select_inner_tolerance(
-            use_picard: bool,
-            res_new: float,
-            res_old: float,
-            inner_tolerance: float,
-            condition: bool,
-            solver_args: dict,
-        ) -> float:
-            eps_kr0 = solver_args.get("initial", 0.5)
-            if use_picard:
-                threshold_ref = solver_args.get("static", 0.25)
-            else:
-                gamma_kr = solver_args.get("coefficient", 1.0)
-                omega_kr = solver_args.get("exponential", 2.0)
-                if condition:
-                    ratio = res_new / res_old
-                    eps_kr_k = gamma_kr * np.power(ratio, omega_kr)
-                    eps_kr_r = gamma_kr * np.power(inner_tolerance, omega_kr)
-                    threshold_ref = (
-                        min(eps_kr_k, eps_kr_r) if eps_kr_r > 0.1 else eps_kr_k
-                    )
-                else:
-                    threshold_ref = eps_kr0
-            return max(self._tolerance_linear, min(eps_kr0, threshold_ref))
+        assert (
+            inner_tolerance_args.get("solver_kind") is not None
+        ), "Define the type of solver"
 
         # Decide if linear or nonlinear problem
         self.update_properties = (
@@ -740,103 +593,34 @@ class st_heat_transfer_problem(spacetime_problem):
 
         # Initialize stopping criteria parameters
         outer_tolerance = (
-            select_outer_tolerance(self)
+            super().select_outer_tolerance(self.part, time_patch=self.time)
             if auto_outer_tolerance
             else self._tolerance_nonlinear
         )
-        norm_increment, norm_temperature = 1.0, 1.0
-        norm_residual_old = None
-        inner_tolerance_old = None
 
-        # Anderson acceleration data
-        G_history = np.zeros((*np.shape(temperature), anderson_history_size))
-        R_history = np.zeros((*np.shape(temperature), anderson_history_size))
+        # Solve using a nonlinear solver
+        nonlinsolv = nonlinsolver(
+            maxiters=self._maxiters_nonlinear,
+            tolerance=outer_tolerance,
+            linear_solver_tolerance=self._tolerance_linear,
+        )
 
-        start = time.process_time()
-        for iteration in range(self._maxiters_nonlinear):
+        output = nonlinsolv.solve(
+            temperature,
+            external_force,
+            self._compute_residual,
+            self._solve_linearized_system,
+            select_inner_tolerance=super().select_inner_tolerance
+            if auto_inner_tolerance
+            else None,
+            residual_args={},
+            linsolv_args={"solver_kind": inner_tolerance_args.get("solver_kind")},
+            inner_tolerance_args=inner_tolerance_args,
+            save_information=True,
+        )
 
-            residual, args = self._compute_heat_transfer_residual(
-                temperature, external_force
-            )
-
-            norm_residual = np.linalg.norm(residual)
-            print(f"Nonlinear error: {norm_residual:.3e}")
-            self._nonlinear_residual_list.append(norm_residual)
-            self._solution_history_list[f"noniter_{iteration}"] = np.copy(temperature)
-
-            finish = time.process_time()
-            self._nonlinear_time_list.append(finish - start)
-
-            if iteration == 0:
-                norm_residual_ref = norm_residual
-            else:
-                if norm_residual <= max(
-                    self._safeguard, outer_tolerance * norm_residual_ref
-                ):
-                    break
-                if norm_increment <= max(
-                    self._safeguard, outer_tolerance * norm_temperature
-                ):
-                    break
-
-            # Update inner threshold
-            if auto_inner_tolerance:
-                inner_tolerance = select_inner_tolerance(
-                    use_picard,
-                    norm_residual,
-                    norm_residual_old,
-                    inner_tolerance_old,
-                    iteration > 0,
-                    nonlinear_args,
-                )
-                norm_residual_old = norm_residual
-                inner_tolerance_old = inner_tolerance
-            else:
-                inner_tolerance = self._tolerance_linear
-            self._linear_tolerance_list.append(inner_tolerance)
-
-            # Solve for active control points
-            increment = self._linearized_spacetime_heat_transfer_solver(
-                residual,
-                args=args,
-                use_picard=use_picard,
-                inner_tolerance=inner_tolerance,
-            )
-
-            new_temperature = temperature + increment
-            if iteration < anderson_history_size:
-                R_history[..., iteration] = -increment
-                G_history[..., iteration] = new_temperature
-            else:
-                R_history = np.roll(R_history, -1, axis=1)
-                G_history = np.roll(G_history, -1, axis=1)
-                R_history[..., -1] = -increment
-                G_history[..., -1] = new_temperature
-
-            if anderson_history_size > 0 and iteration >= anderson_history_size:
-                A = R_history[..., 1:] - R_history[..., [0]]
-                b = -R_history[..., 0]
-                try:
-                    c = np.linalg.lstsq(A, b, rcond=None)[0]
-                    beta = np.zeros(anderson_history_size)
-                    beta[0] = 1.0 - np.sum(c)
-                    beta[1:] = c
-                    increment = np.einsum("...i,i->...", G_history, beta) - temperature
-                except np.linalg.LinAlgError:
-                    print(
-                        "LinAlgError in Anderson acceleration, fallback to simple increment"
-                    )
-
-            # Update active control points
-            temperature += increment
-            norm_increment = (
-                self.norm_of_field(increment, norm_type="l2")
-                if auto_outer_tolerance
-                else np.linalg.norm(increment)
-            )
-            norm_temperature = (
-                self.norm_of_field(temperature, norm_type="l2")
-                if auto_outer_tolerance
-                else np.linalg.norm(temperature)
-            )
-            self._nonlinear_rate_list.append(norm_increment / norm_temperature)
+        self._nonlinear_residual_list = output["nonlinear_residual_list"]
+        self._nonlinear_time_list = output["nonlinear_time_list"]
+        self._nonlinear_rate_list = output["nonlinear_rate_list"]
+        self._linear_tolerance_list = output["linear_tolerance_list"]
+        self._solution_history_list = output["solution_history_list"]
