@@ -184,8 +184,8 @@ geometry = mygeomdl({"name": "QA", "degree": DEGREE, "nbel": NBEL}).export_geome
 space_patch = singlepatch(geometry, quad_args=quad_args)
 
 # Create time span
-NBEL_TIME = 64
-quad_args = {"quadrule": "gs", "type": "lob"}
+NBEL_TIME = 8
+quad_args = {"quadrule": "gs", "type": "leg"}
 time_interval = mygeomdl(
     {"name": "line", "degree": 1, "nbel": NBEL_TIME}
 ).export_geometry()
@@ -219,7 +219,7 @@ external_force = problem.assemble_volumetric_force(power_density)
 # Solve space time problem
 temperature = np.zeros_like(external_force)
 problem.solve_heat_transfer(
-    temperature, external_force, use_picard=True, auto_inner_tolerance=False
+    temperature, external_force, auto_inner_tolerance=True
 )
 finish = time.time()
 

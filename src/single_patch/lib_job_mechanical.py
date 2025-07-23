@@ -183,7 +183,7 @@ class mechanical_problem(space_problem):
                 stiffness_corrector=self._scalar_mean_stiffness
             )
         self.preconditioner.update_space_eigenvalues(scalar_coefs=(0, 1))
-        output = self._solve_linear_system(
+        output = super()._solve_linear_system(
             self.compute_mf_stiffness,
             array_in,
             Pfun=self.preconditioner.apply_vectorial_preconditioner,
@@ -301,7 +301,7 @@ class mechanical_problem(space_problem):
                     mass_corrector=self._scalar_mean_mass
                 )
             self.preconditioner.update_space_eigenvalues(scalar_coefs=(1, 0))
-            output = self._solve_linear_system(
+            output = super()._solve_linear_system(
                 self.compute_mf_mass,
                 array_in,
                 Pfun=self.preconditioner.apply_vectorial_preconditioner,

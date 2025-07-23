@@ -468,12 +468,13 @@ class weighted_quadrature(quadrature_rule):
         if self._use_other:
             assert self.degree == 1, "Only degree 1 is treated differently."
             # Overwrite the quadrature points, basis and weights with other quadrature
+            val = 1.0 if self._quadrature_type == "1" else 2.0
             quadrule = gauss_quadrature(
                 degree=self.degree,
                 knotvector=self.knotvector,
                 quad_args={
                     "type": "leg",
-                    "default_order": (self.degree + self._quadrature_type),
+                    "default_order": (self.degree + val),
                 },
             )
             quadrule.export_quadrature_rules()

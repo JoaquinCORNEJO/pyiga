@@ -103,12 +103,13 @@ def simulate_ht(degree, cuts, nbel_time, quad_args, ivp="alpha"):
 
         # Solve problem
         problem._tolerance_nonlinear = 1e-8
-        problem.solve_heat_transfer_bdf(
+        problem.solve_heat_transfer(
             temperature,
             external_heat_source,
-            (time_inc[0], time_inc[-1]),
-            nbel_time,
+            tspan=(time_inc[0], time_inc[-1]),
+            nsteps=nbel_time,
             norder=int(ivp[-1]),
+            type_solver="bdf"
         )
 
     return problem, time_inc, temperature
