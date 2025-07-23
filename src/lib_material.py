@@ -22,9 +22,9 @@ def compute_trace(tensor: np.ndarray) -> np.ndarray:
 def compute_deviatoric(tensor: np.ndarray) -> np.ndarray:
     assert tensor.shape[0] == tensor.shape[1], "Tensor must be square"
     trace: np.ndarray = compute_trace(tensor) / 3.0
-    deviatoric: np.ndarray = np.zeros_like(tensor)
+    deviatoric: np.ndarray = np.copy(tensor)
     for i in range(tensor.shape[0]):
-        deviatoric[i, i, ...] = tensor[i, i, ...] - trace[...]
+        deviatoric[i, i, ...] -= trace[...]
     return deviatoric
 
 
