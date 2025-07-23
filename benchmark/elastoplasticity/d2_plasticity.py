@@ -23,7 +23,7 @@ def surface_force(args: dict):
 
 
 # Create geometry
-degree, nbel = 2, 32
+degree, nbel = 2, 8
 material = J2plasticity3d(
     {
         "elastic_modulus": YOUNG,

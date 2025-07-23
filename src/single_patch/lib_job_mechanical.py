@@ -24,11 +24,10 @@ class mechanical_problem(space_problem):
         self.preconditioner = self.activate_preconditioner()
         self._mass_property: Union[None, Callable] = None
         self._stiffness_property: Union[None, Callable] = None
-        self._scalar_mean_mass: List[float] = [1.0] * self.nbvars
+        self._scalar_mean_mass: List[float] = [1.0] * self.part.ndim
         self._scalar_mean_stiffness: List[np.ndarray] = [
-            np.ones(self.nbvars)
-        ] * self.nbvars
-        return
+            np.ones(self.part.ndim)
+        ] * self.part.ndim
 
     def activate_preconditioner(self) -> fastdiagonalization:
         fastdiag = fastdiagonalization()
@@ -50,16 +49,15 @@ class mechanical_problem(space_problem):
             self._diagonal_mass = None
         else:
             print("Solver will use plain matrix")
-        return
 
-    def compute_mf_mass(self, array_in, args={}):
-        args = self._verify_fun_args(args)
+    def compute_mf_mass(self, array_in: np.ndarray, mf_args: dict = {}) -> np.ndarray:
+        mf_args = self._verify_fun_args(mf_args)
         if self._mass_property is None:
-            self._mass_property = self.material.density(args) * self.part.det_jac
+            self._mass_property = self.material.density(mf_args) * self.part.det_jac
             mass_mean = np.mean(self._mass_property)
-            self._scalar_mean_mass = [mass_mean] * self.nbvars
+            self._scalar_mean_mass = [mass_mean] * self.part.ndim
         array_out = np.zeros_like(array_in)
-        for i in range(self.nbvars):
+        for i in range(self.part.ndim):
             array_out[i, :] = bspline_operations.compute_mf_scalar_u_v(
                 self.part.quadrule_list,
                 self._mass_property,
@@ -68,31 +66,31 @@ class mechanical_problem(space_problem):
             )
         return array_out
 
-    def compute_mf_stiffness(self, array_in, args={}):
+    def compute_mf_stiffness(self, array_in: np.ndarray, mf_args: dict={})->np.ndarray:
         "In this algorithm we only consider the linear elastic case"
-        args = self._verify_fun_args(args)
+        mf_args = self._verify_fun_args(mf_args)
         if self._stiffness_property is None:
-            tangent = args.get(
+            tangent = mf_args.get(
                 "consistent_tangent",
                 self.material.set_linear_elastic_tensor(
-                    self.part.nbqp_total, self.nbvars
+                    self.part.nbqp_total, self.part.ndim
                 ),
             )
             self._stiffness_property = np.zeros(
                 (
-                    self.nbvars,
-                    self.nbvars,
-                    self.nbvars,
-                    self.nbvars,
+                    self.part.ndim,
+                    self.part.ndim,
+                    self.part.ndim,
+                    self.part.ndim,
                     self.part.nbqp_total,
                 )
             )
-            for i in range(self.nbvars):
-                for j in range(self.nbvars):
+            for i in range(self.part.ndim):
+                for j in range(self.part.ndim):
                     self._stiffness_property[i, j, ...] = np.einsum(
                         "ilk,lmk,jmk,k->ijk",
                         self.part.inv_jac,
-                        tangent[i, j, : self.nbvars, : self.nbvars, ...],
+                        tangent[i, j, : self.part.ndim, : self.part.ndim, ...],
                         self.part.inv_jac,
                         self.part.det_jac,
                         optimize=True,
@@ -101,26 +99,26 @@ class mechanical_problem(space_problem):
                 np.array(
                     [
                         np.mean(self._stiffness_property[i, i, j, j, :])
-                        for j in range(self.nbvars)
+                        for j in range(self.part.ndim)
                     ]
                 )
-                for i in range(self.nbvars)
+                for i in range(self.part.ndim)
             ]
 
         array_out = np.zeros_like(array_in)
-        for i in range(self.nbvars):
+        for i in range(self.part.ndim):
             array_out[i, :] = sum(
                 bspline_operations.compute_mf_scalar_gradu_gradv(
                     self.part.quadrule_list,
                     self._stiffness_property[i, j, ...],
                     array_in[j, :],
                 )
-                for j in range(self.nbvars)
+                for j in range(self.part.ndim)
             )
 
         return array_out
 
-    def interpolate_strain(self, displacement, convert_to_3d=False):
+    def interpolate_strain(self, displacement: np.ndarray, convert_to_3d: bool=False)->np.ndarray:
         "Compute strain field from displacement field"
         ders_par = bspline_operations.eval_jacobien(
             self.part.quadrule_list, displacement
@@ -128,13 +126,13 @@ class mechanical_problem(space_problem):
         ders_phy = np.einsum("ijl,jkl->ikl", ders_par, self.part.inv_jac, optimize=True)
         strain = 0.5 * (ders_phy + np.einsum("ijl->jil", ders_phy, optimize=True))
         if convert_to_3d:
-            output = np.zeros((3, 3, np.shape(strain)[-1]))
-            output[: self.nbvars, : self.nbvars, :] = strain
-            return output
+            strain_3d = np.zeros((3, 3, np.shape(strain)[-1]))
+            strain_3d[: self.part.ndim, : self.part.ndim, :] = strain
+            return strain_3d
         else:
             return strain
 
-    def _assemble_internal_force(self, stress):
+    def _assemble_internal_force(self, stress: np.ndarray) ->np.ndarray:
         mf = matrixfree(
             np.array(
                 [quadrule.nbquadpts for quadrule in self.part.quadrule_list], dtype=int
@@ -143,14 +141,14 @@ class mechanical_problem(space_problem):
         prop = np.einsum(
             "ilk,ljk,k->ijk",
             self.part.inv_jac,
-            stress[: self.nbvars, : self.nbvars, :],
+            stress[: self.part.ndim, : self.part.ndim, :],
             self.part.det_jac,
             optimize=True,
         )
-        array_out = np.zeros((self.nbvars, self.part.nbctrlpts_total))
-        for i in range(self.nbvars):
-            for k in range(self.nbvars):
-                alpha_list = np.ones(self.nbvars, dtype=int)
+        array_out = np.zeros((self.part.ndim, self.part.nbctrlpts_total))
+        for i in range(self.part.ndim):
+            for k in range(self.part.ndim):
+                alpha_list = np.ones(self.part.ndim, dtype=int)
                 alpha_list[k] = 3
                 array_out[i, :] += mf.sumfactorization(
                     [
@@ -162,22 +160,28 @@ class mechanical_problem(space_problem):
                 )
         return array_out
 
-    def _compute_elastoplastic_residual(
-        self, displacement, external_force, old_plastic_vars, update_properties=False
-    ):
+    def _compute_residual(
+        self, displacement: np.ndarray, external_force: np.ndarray, **kwargs
+    ) -> Tuple[np.ndarray, dict]:
 
-        if update_properties:
+        plastic_vars: dict = kwargs.get("plastic_vars")
+
+        if self.update_properties:
             self.clear_properties()
-        convert_to_3d = False if self.nbvars == 1 else True
+        convert_to_3d = False if self.part.ndim == 1 else True
         strain = self.interpolate_strain(displacement, convert_to_3d=convert_to_3d)
-        stress, mech_args, new_plastic_vars = self.material.return_mapping(
-            strain, old_plastic_vars
+        stress, mf_args = self.material.return_mapping(
+            strain, plastic_vars
         )
         residual = external_force - self._assemble_internal_force(stress)
         clean_dirichlet(residual, self.sp_constraint_ctrlpts)
-        return residual, mech_args, new_plastic_vars
+        return residual, mf_args
 
-    def _linearized_elastoplastic_solver(self, array_in, args={}):
+    def _solve_linearized_system(self, array_in: np.ndarray, **kwargs) -> np.ndarray:
+
+        mf_args: dict = kwargs.get("mf_args")
+        inner_tolerance: float = kwargs.get("inner_tolerance")
+
         if self._update_preconditioner:
             self.preconditioner.add_scalar_space_time_correctors(
                 stiffness_corrector=self._scalar_mean_stiffness
@@ -190,7 +194,8 @@ class mechanical_problem(space_problem):
             dotfun=block_dot_product,
             cleanfun=clean_dirichlet,
             dod=self.sp_constraint_ctrlpts,
-            args=args,
+            args=mf_args,
+            tolerance=inner_tolerance
         )
         self._linear_residual_list.append(output["res"])
         return output["sol"]
@@ -203,79 +208,59 @@ class mechanical_problem(space_problem):
     ):
 
         # Decide if it is a linear or nonlinear problem
-        update_properties = self.material._activated_plasticity
-        plastic_vars = []
+        self.update_properties = self.material._activated_plasticity
 
-        # Get inactive control points
-        constraint_ctrlpts = self.sp_constraint_ctrlpts
+        nonlinsolv = nonlinsolver(
+            maxiters=self._maxiters_nonlinear,
+            tolerance=self._tolerance_nonlinear,
+            linear_solver_tolerance=self._tolerance_linear,
+        )
 
         if external_force_list.ndim == 2 and displacement_list.ndim == 2:
 
-            # Single step problem
-            for j in range(self._maxiters_nonlinear):
-                residual, mech_args, _ = self._compute_elastoplastic_residual(
-                    displacement_list,
-                    external_force_list,
-                    {},
-                    update_properties=update_properties,
-                )
+            print(f"Static linear elastic solver")
+            nonlinsolv.solve(
+                displacement_list,
+                external_force_list,
+                self._compute_residual,
+                self._solve_linearized_system,
+                residual_args= {"plastic_vars": {}}
+            )
 
-                residual_norm = np.linalg.norm(residual)
-                if j == 0:
-                    ref_residual_norm = residual_norm
-                print(f"Non linear error: {residual_norm:.5e}")
-                if residual_norm <= max(
-                    [self._safeguard, self._tolerance_nonlinear * ref_residual_norm]
-                ):
-                    break
+            return
 
-                displacement_list += self._linearized_elastoplastic_solver(
-                    residual, args=mech_args
-                )
-        else:
+        print(f"Quasi-static elastoplastic solver")
+        # Get inactive control points
+        constraint_ctrlpts = self.sp_constraint_ctrlpts
 
-            # Time-stepping problem
-            new_plastic_vars = {}
-            for i in range(1, external_force_list.shape[-1]):
+        # Time-stepping problem
+        all_plastic_vars: List[dict] = []
+        plastic_vars: dict = {}
+        for i in range(1, external_force_list.shape[-1]):
 
-                # Predict values of new step
-                Fext_n1 = np.copy(external_force_list[:, :, i])
-                dj_n1 = np.copy(displacement_list[:, :, i - 1])
-                for j, dod in enumerate(constraint_ctrlpts):
-                    dj_n1[j, dod] = displacement_list[j, dod, i]
-                old_plastic_vars = deepcopy(new_plastic_vars)
+            # Predict values of new step
+            Fext_n1 = np.copy(external_force_list[:, :, i])
+            dj_n1 = np.copy(displacement_list[:, :, i - 1])
+            for j, dod in enumerate(constraint_ctrlpts):
+                dj_n1[j, dod] = displacement_list[j, dod, i]
 
-                print(f"Step: {i}")
-                for j in range(self._maxiters_nonlinear):
-                    (
-                        residual,
-                        mech_args,
-                        new_plastic_vars,
-                    ) = self._compute_elastoplastic_residual(
-                        dj_n1,
-                        Fext_n1,
-                        old_plastic_vars,
-                        update_properties=update_properties,
-                    )
+            print(f"(Pseudo) Time-step: {i}")
+            residual_args = {"plastic_vars": plastic_vars}
+            nonlinsolv.solve(
+                dj_n1,
+                Fext_n1,
+                self._compute_residual,
+                self._solve_linearized_system,
+                residual_args=residual_args,
+            )
 
-                    residual_norm = np.linalg.norm(residual)
-                    if j == 0:
-                        ref_residual_norm = residual_norm
-                    print(f"Non linear error: {residual_norm:.5e}")
-                    if residual_norm <= max(
-                        [self._safeguard, self._tolerance_nonlinear * ref_residual_norm]
-                    ):
-                        break
+            displacement_list[:, :, i] = np.copy(dj_n1)
+            plastic_vars = deepcopy(residual_args["plastic_vars"])
+            print(plastic_vars["plastic_equivalent"])
+            if save_plastic_vars:
+                all_plastic_vars.append(plastic_vars)
 
-                    dj_n1 += self._linearized_elastoplastic_solver(
-                        residual, args=mech_args
-                    )
-
-                displacement_list[:, :, i] = dj_n1
-                if save_plastic_vars:
-                    plastic_vars.append(new_plastic_vars)
-
-        return plastic_vars
+        return all_plastic_vars
 
     def _linearized_explicit_dynamic_solver(self, array_in, args={}):
 
@@ -288,7 +273,7 @@ class mechanical_problem(space_problem):
                 )
 
             array_out = np.zeros_like(array_in)
-            for i in range(self.nbvars):
+            for i in range(self.part.ndim):
                 free_nodes = self.sp_free_ctrlpts[i]
                 array_out[i, free_nodes] = (
                     array_in[i, free_nodes] / self._diagonal_mass[free_nodes]
@@ -317,7 +302,7 @@ class mechanical_problem(space_problem):
         self, displacement_list, external_force_list, time_list, initial_velocity=None
     ):
         "Solves linear explicit dynamic problem."
-        update_properties = not (
+        self.update_properties = not (
             self.material._has_uniform_density
         )  # True only if density depends on current plastic variables
 
@@ -352,14 +337,14 @@ class mechanical_problem(space_problem):
         d_n0 = np.copy(displacement_list[:, :, 0])
         v_n0 = np.copy(initial_velocity)
         if not velocity_has_been_given:
-            for k in range(self.nbvars):
+            for k in range(self.part.ndim):
                 dt1 = time_list[1] - time_list[0]
                 d0 = np.copy(displacement_list[k, constraint_ctrlpts[k], 0])
                 d1 = np.copy(displacement_list[k, constraint_ctrlpts[k], 1])
                 v_n0[k, constraint_ctrlpts[k]] = (d1 - d0) / dt1
 
         a_n0 = np.zeros_like(d_n0)
-        for k in range(self.nbvars):
+        for k in range(self.part.ndim):
             dt1 = time_list[1] - time_list[0]
             dt2 = time_list[2] - time_list[0]
             d0 = np.copy(displacement_list[k, constraint_ctrlpts[k], 0])
@@ -370,8 +355,8 @@ class mechanical_problem(space_problem):
             ) / (dt1 * dt2 * (dt2 - dt1))
 
         Fext = update_force_nonhomogeneous_bc(self, a_n0, Fext, args)
-        residual, _, new_plastic_vars = self._compute_elastoplastic_residual(
-            d_n0, Fext, old_plastic_vars, update_properties=update_properties
+        residual, _, new_plastic_vars = self._compute_residual(
+            d_n0, Fext, old_plastic_vars
         )
         old_plastic_vars = deepcopy(new_plastic_vars)
         a_n0 += compute_acceleration(self, residual, args)
@@ -394,7 +379,7 @@ class mechanical_problem(space_problem):
 
             # Apply boundary conditions
             if i == len(time_list) - 1:
-                for k in range(self.nbvars):
+                for k in range(self.part.ndim):
                     # dtm1 = time_list[-1] - time_list[-2]
                     # dtm2 = time_list[-1] - time_list[-3]
                     # d_m1 = np.copy(displacement_list[k, constraint_ctrlpts[k], -1])
@@ -404,7 +389,7 @@ class mechanical_problem(space_problem):
                         k, constraint_ctrlpts[k]
                     ] = 0  # TODO: remake for non homogeneous B.C.
             else:
-                for k in range(self.nbvars):
+                for k in range(self.part.ndim):
                     # dtm1 = time_list[i] - time_list[i-1]
                     # dtp1 = time_list[i+1] - time_list[i]
                     # d_m1 = np.copy(displacement_list[k, constraint_ctrlpts[k], i-1])
@@ -414,15 +399,15 @@ class mechanical_problem(space_problem):
                         k, constraint_ctrlpts[k]
                     ] = 0  # TODO: remake for non homogeneous B.C.
 
-            for k in range(self.nbvars):
+            for k in range(self.part.ndim):
                 d_n1[k, constraint_ctrlpts[k]] = displacement_list[
                     k, constraint_ctrlpts[k], i
                 ]
 
             # Compute residual and update plastic variables
             Fext = update_force_nonhomogeneous_bc(self, a_n1, Fext, args)
-            residual, _, new_plastic_vars = self._compute_elastoplastic_residual(
-                d_n1, Fext, old_plastic_vars, update_properties=update_properties
+            residual, _, new_plastic_vars = self._compute_residual(
+                d_n1, Fext, old_plastic_vars
             )
             old_plastic_vars = deepcopy(new_plastic_vars)
             a_n1 += compute_acceleration(self, residual, args)
@@ -435,33 +420,33 @@ class mechanical_problem(space_problem):
 
     def solve_eigenvalue_problem(self, args={}, which="LM", k=None):
 
-        original_lumping_condition = deepcopy(self.allow_lumping)
+        original_condition = deepcopy(self.allow_lumping)
         self.allow_lumping = False  # We only solve eigenproblem with plain matrix
 
         fastdiag = fastdiagonalization()
         fastdiag.compute_space_eigendecomposition(
-            self.part.quadrule_list, np.zeros((self.nbvars, 3, 2))
+            self.part.quadrule_list, np.zeros((self.part.ndim, self.part.ndim, 2))
         )
         fastdiag.add_free_controlpoints(
             [
                 np.arange(self.part.nbctrlpts_total, dtype=int)
-                for _ in range(self.nbvars)
+                for _ in range(self.part.ndim)
             ]
         )
         fastdiag.update_space_eigenvalues(scalar_coefs=(1, 0))
 
-        solv = linsolver(tolerance=1e-2)  # High tolerance
-        sizeofvector = self.part.ndim * self.part.nbctrlpts_total
+        solv = linsolver(tolerance=1e-2)  # Use a rough tolerance for the pseudo-preconditioner
+        size_array = self.part.ndim * self.part.nbctrlpts_total
 
         def mass(x):
-            x_in = np.reshape(x, newshape=(self.nbvars, -1), order="F")
-            x_out = self.compute_mf_mass(x_in, args=args)
+            x_in = np.reshape(x, newshape=(self.part.ndim, -1), order="F")
+            x_out = self.compute_mf_mass(x_in, mf_args=args)
             return np.ravel(x_out, order="F")
 
         def preconditioner(x):
             output = solv.GMRES(
                 self.compute_mf_mass,
-                np.reshape(x, newshape=(self.nbvars, -1), order="F"),
+                np.reshape(x, newshape=(self.part.ndim, -1), order="F"),
                 Pfun=fastdiag.apply_vectorial_preconditioner,
                 dotfun=block_dot_product,
                 args=args,
@@ -469,20 +454,20 @@ class mechanical_problem(space_problem):
             return np.ravel(output["sol"], order="F")
 
         def stiffness(x):
-            x_in = np.reshape(x, newshape=(self.nbvars, -1), order="F")
-            x_out = self.compute_mf_stiffness(x_in, args=args)
+            x_in = np.reshape(x, newshape=(self.part.ndim, -1), order="F")
+            x_out = self.compute_mf_stiffness(x_in, mf_args=args)
             return np.ravel(x_out, order="F")
 
         if k is None:
-            k = sizeofvector - 2
+            k = size_array - 2
         eigenvalues, eigenvectors = solv.eigs(
-            N=sizeofvector,
+            N=size_array,
             Afun=stiffness,
             Bfun=mass,
             Pfun=preconditioner,
             k=k,
             which=which,
         )
-        self.allow_lumping = original_lumping_condition
+        self.allow_lumping = original_condition
 
         return eigenvalues, eigenvectors

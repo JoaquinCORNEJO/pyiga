@@ -19,7 +19,7 @@ class heat_transfer_problem(space_problem):
         self._capacity_property: Union[Callable, None] = None
         self._conductivity_property: Union[Callable, None] = None
         self._scalar_mean_capacity: List[float] = [1]
-        self._scalar_mean_conductivity: List[np.ndarray] = [np.ones(self.nbvars)]
+        self._scalar_mean_conductivity: List[np.ndarray] = [np.ones(self.part.ndim)]
 
     def activate_preconditioner(self) -> fastdiagonalization:
         fastdiag = fastdiagonalization()
@@ -158,11 +158,12 @@ class heat_transfer_problem(space_problem):
         assert isinstance(temperature, np.ndarray), "Define a numpy object"
         assert isinstance(increment, np.ndarray), "Define a numpy object"
         # Get other variables
-        flux = kwargs.get("flux", 0.0)
+        flux = kwargs.get("flux", None)
         flux_factor = kwargs.get("flux_factor", 1.0)
         # Update
         temperature += increment
-        flux += increment * flux_factor
+        if flux is not None:
+            flux += increment * flux_factor
         kwargs = kwargs | {"flux": flux}
 
     def solve_heat_transfer(
@@ -340,7 +341,7 @@ class st_heat_transfer_problem(spacetime_problem):
         self._ders_capacity_property: Union[None, Callable] = None
         self._ders_conductivity_property: Union[None, Callable] = None
         self._scalar_mean_capacity: List[float] = [1]
-        self._scalar_mean_conductivity: List[np.ndarray] = [np.ones(self.nbvars)]
+        self._scalar_mean_conductivity: List[np.ndarray] = [np.ones(self.part.ndim)]
         return
 
     def activate_preconditioner(self) -> fastdiagonalization:
