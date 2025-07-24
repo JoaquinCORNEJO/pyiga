@@ -66,7 +66,9 @@ class mechanical_problem(space_problem):
             )
         return array_out
 
-    def compute_mf_stiffness(self, array_in: np.ndarray, mf_args: dict={})->np.ndarray:
+    def compute_mf_stiffness(
+        self, array_in: np.ndarray, mf_args: dict = {}
+    ) -> np.ndarray:
         "In this algorithm we only consider the linear elastic case"
         mf_args = self._verify_fun_args(mf_args)
         if self._stiffness_property is None:
@@ -118,7 +120,9 @@ class mechanical_problem(space_problem):
 
         return array_out
 
-    def interpolate_strain(self, displacement: np.ndarray, convert_to_3d: bool=False)->np.ndarray:
+    def interpolate_strain(
+        self, displacement: np.ndarray, convert_to_3d: bool = False
+    ) -> np.ndarray:
         "Compute strain field from displacement field"
         ders_par = bspline_operations.eval_jacobien(
             self.part.quadrule_list, displacement
@@ -132,7 +136,7 @@ class mechanical_problem(space_problem):
         else:
             return strain
 
-    def _assemble_internal_force(self, stress: np.ndarray) ->np.ndarray:
+    def _assemble_internal_force(self, stress: np.ndarray) -> np.ndarray:
         mf = matrixfree(
             np.array(
                 [quadrule.nbquadpts for quadrule in self.part.quadrule_list], dtype=int
@@ -170,9 +174,7 @@ class mechanical_problem(space_problem):
             self.clear_properties()
         convert_to_3d = False if self.part.ndim == 1 else True
         strain = self.interpolate_strain(displacement, convert_to_3d=convert_to_3d)
-        stress, mf_args = self.material.return_mapping(
-            strain, plastic_vars
-        )
+        stress, mf_args = self.material.return_mapping(strain, plastic_vars)
         residual = external_force - self._assemble_internal_force(stress)
         clean_dirichlet(residual, self.sp_constraint_ctrlpts)
         return residual, mf_args
@@ -195,7 +197,7 @@ class mechanical_problem(space_problem):
             cleanfun=clean_dirichlet,
             dod=self.sp_constraint_ctrlpts,
             args=mf_args,
-            tolerance=inner_tolerance
+            tolerance=inner_tolerance,
         )
         self._linear_residual_list.append(output["res"])
         return output["sol"]
@@ -204,8 +206,8 @@ class mechanical_problem(space_problem):
         self,
         displacement_list: np.ndarray,
         external_force_list: np.ndarray,
-        save_plastic_vars=False,
-    ):
+        save_plastic_vars: bool = False,
+    ) -> dict:
 
         # Decide if it is a linear or nonlinear problem
         self.update_properties = self.material._activated_plasticity
@@ -224,7 +226,7 @@ class mechanical_problem(space_problem):
                 external_force_list,
                 self._compute_residual,
                 self._solve_linearized_system,
-                residual_args= {"plastic_vars": {}}
+                residual_args={"plastic_vars": {}},
             )
 
             return
@@ -256,18 +258,19 @@ class mechanical_problem(space_problem):
 
             displacement_list[:, :, i] = np.copy(dj_n1)
             plastic_vars = deepcopy(residual_args["plastic_vars"])
-            print(plastic_vars["plastic_equivalent"])
             if save_plastic_vars:
                 all_plastic_vars.append(plastic_vars)
 
         return all_plastic_vars
 
-    def _linearized_explicit_dynamic_solver(self, array_in, args={}):
+    def _linearized_explicit_dynamic_solver(
+        self, array_in: np.ndarray, mf_args: dict = {}
+    ) -> np.ndarray:
 
         if self.allow_lumping:
             if self._diagonal_mass is None or self._mass_property is None:
-                args = self._verify_fun_args(args)
-                self._mass_property = self.material.density(args) * self.part.det_jac
+                mf_args = self._verify_fun_args(mf_args)
+                self._mass_property = self.material.density(mf_args) * self.part.det_jac
                 self._diagonal_mass = bspline_operations.assemble_scalar_u_v(
                     self.part.quadrule_list, self._mass_property, allow_lumping=True
                 )
@@ -293,13 +296,16 @@ class mechanical_problem(space_problem):
                 dotfun=block_dot_product,
                 cleanfun=clean_dirichlet,
                 dod=self.sp_constraint_ctrlpts,
-                args=args,
+                args=mf_args,
             )
             self._linear_residual_list.append(output["res"])
         return output["sol"]
 
     def solve_explicit_linear_dynamics(
-        self, displacement_list, external_force_list, time_list, initial_velocity=None
+        self,
+        displacement_list: np.ndarray,
+        external_force_list: np.ndarray,
+        time_list: Union[list, np.ndarray],
     ):
         "Solves linear explicit dynamic problem."
         self.update_properties = not (
@@ -307,18 +313,8 @@ class mechanical_problem(space_problem):
         )  # True only if density depends on current plastic variables
 
         assert len(time_list) > 3, "At least 2 steps"
-        constraint_ctrlpts = self.sp_constraint_ctrlpts
-        old_plastic_vars, new_plastic_vars = {}, {}
-        velocity_has_been_given = True
-        if initial_velocity is None:
-            velocity_has_been_given = False
-            initial_velocity = np.zeros_like(displacement_list[:, :, 0])
-
-        def update_force_nonhomogeneous_bc(
-            problem: mechanical_problem, acc, Fext_in, args
-        ):
-            Fext_out = Fext_in - problem.compute_mf_mass(acc, args)
-            return Fext_out
+        self.activate_explicit_dynamics()
+        plastic_vars: dict = {}
 
         def predict_displacement(dis, vel, acc, dt):
             return dis + dt * vel + 0.5 * dt**2 * acc
@@ -326,100 +322,46 @@ class mechanical_problem(space_problem):
         def update_velocity(vel, acc_old, acc_new, dt):
             return vel + 0.5 * dt * (acc_old + acc_new)
 
-        def compute_acceleration(problem: mechanical_problem, res, args):
-            return problem._linearized_explicit_dynamic_solver(res, args)
+        def compute_acceleration(problem: mechanical_problem, res, mf_args):
+            return problem._linearized_explicit_dynamic_solver(res, mf_args)
 
-        args = self._verify_fun_args({})
-        self.activate_explicit_dynamics()
-
-        # Compute initial acceleration considering static problem
-        Fext = np.copy(external_force_list[:, :, 0])
-        d_n0 = np.copy(displacement_list[:, :, 0])
-        v_n0 = np.copy(initial_velocity)
-        if not velocity_has_been_given:
-            for k in range(self.part.ndim):
-                dt1 = time_list[1] - time_list[0]
-                d0 = np.copy(displacement_list[k, constraint_ctrlpts[k], 0])
-                d1 = np.copy(displacement_list[k, constraint_ctrlpts[k], 1])
-                v_n0[k, constraint_ctrlpts[k]] = (d1 - d0) / dt1
-
-        a_n0 = np.zeros_like(d_n0)
+        # Clean displacement array
+        constraint_ctrlpts = self.sp_constraint_ctrlpts
         for k in range(self.part.ndim):
-            dt1 = time_list[1] - time_list[0]
-            dt2 = time_list[2] - time_list[0]
-            d0 = np.copy(displacement_list[k, constraint_ctrlpts[k], 0])
-            d1 = np.copy(displacement_list[k, constraint_ctrlpts[k], 1])
-            d2 = np.copy(displacement_list[k, constraint_ctrlpts[k], 2])
-            a_n0[k, constraint_ctrlpts[k]] = (
-                -d1 * dt2 + d2 * dt1 - d0 * (dt1 - dt2)
-            ) / (dt1 * dt2 * (dt2 - dt1))
+            displacement_list[k, constraint_ctrlpts[k], :] = 0.0
 
-        Fext = update_force_nonhomogeneous_bc(self, a_n0, Fext, args)
-        residual, _, new_plastic_vars = self._compute_residual(
-            d_n0, Fext, old_plastic_vars
-        )
-        old_plastic_vars = deepcopy(new_plastic_vars)
-        a_n0 += compute_acceleration(self, residual, args)
+        # Solve initial static problem
+        Fext = np.copy(external_force_list[..., 0])
+        d_n0 = np.copy(displacement_list[..., 0])
+        v_n0, a_n0 = np.zeros_like(d_n0), np.zeros_like(d_n0)
 
         for i in range(1, len(time_list)):
 
             # Get delta time
             dt = time_list[i] - time_list[i - 1]
 
-            # Get values of last step
-            d_n0 = np.copy(displacement_list[:, :, i - 1])
-            if i > 1:
-                v_n0 = np.copy(v_n1)
-                a_n0 = np.copy(a_n1)
-
             # Predict values of new step
             Fext = np.copy(external_force_list[:, :, i])
             d_n1 = predict_displacement(d_n0, v_n0, a_n0, dt)
             a_n1 = np.zeros_like(d_n0)
 
-            # Apply boundary conditions
-            if i == len(time_list) - 1:
-                for k in range(self.part.ndim):
-                    # dtm1 = time_list[-1] - time_list[-2]
-                    # dtm2 = time_list[-1] - time_list[-3]
-                    # d_m1 = np.copy(displacement_list[k, constraint_ctrlpts[k], -1])
-                    # d_m2 = np.copy(displacement_list[k, constraint_ctrlpts[k], -2])
-                    # d_m3 = np.copy(displacement_list[k, constraint_ctrlpts[k], -3])
-                    a_n1[
-                        k, constraint_ctrlpts[k]
-                    ] = 0  # TODO: remake for non homogeneous B.C.
-            else:
-                for k in range(self.part.ndim):
-                    # dtm1 = time_list[i] - time_list[i-1]
-                    # dtp1 = time_list[i+1] - time_list[i]
-                    # d_m1 = np.copy(displacement_list[k, constraint_ctrlpts[k], i-1])
-                    # d_m0 = np.copy(displacement_list[k, constraint_ctrlpts[k], i])
-                    # d_p1 = np.copy(displacement_list[k, constraint_ctrlpts[k], i+1])
-                    a_n1[
-                        k, constraint_ctrlpts[k]
-                    ] = 0  # TODO: remake for non homogeneous B.C.
-
-            for k in range(self.part.ndim):
-                d_n1[k, constraint_ctrlpts[k]] = displacement_list[
-                    k, constraint_ctrlpts[k], i
-                ]
-
             # Compute residual and update plastic variables
-            Fext = update_force_nonhomogeneous_bc(self, a_n1, Fext, args)
-            residual, _, new_plastic_vars = self._compute_residual(
-                d_n1, Fext, old_plastic_vars
-            )
-            old_plastic_vars = deepcopy(new_plastic_vars)
-            a_n1 += compute_acceleration(self, residual, args)
+            residual_args = {"plastic_vars": plastic_vars}
+            residual, mf_args = self._compute_residual(d_n1, Fext, **residual_args)
+            a_n1 += compute_acceleration(self, residual, mf_args)
             v_n1 = update_velocity(v_n0, a_n0, a_n1, dt)
 
             # Save data for next step
             displacement_list[:, :, i] = np.copy(d_n1)
+            plastic_vars = deepcopy(residual_args["plastic_vars"])
+            d_n0 = np.copy(d_n1)
+            v_n0 = np.copy(v_n1)
+            a_n0 = np.copy(a_n1)
 
-        return
-
-    def solve_eigenvalue_problem(self, args={}, which="LM", k=None):
-
+    def solve_eigenvalue_problem(
+        self, mf_args: dict = {}, which: str = "LM", k: int = 6
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        assert np.isscalar(k), "It should be scalar"
         original_condition = deepcopy(self.allow_lumping)
         self.allow_lumping = False  # We only solve eigenproblem with plain matrix
 
@@ -435,12 +377,14 @@ class mechanical_problem(space_problem):
         )
         fastdiag.update_space_eigenvalues(scalar_coefs=(1, 0))
 
-        solv = linsolver(tolerance=1e-2)  # Use a rough tolerance for the pseudo-preconditioner
+        solv = linsolver(
+            tolerance=1e-2
+        )  # Use a rough tolerance for the pseudo-preconditioner
         size_array = self.part.ndim * self.part.nbctrlpts_total
 
         def mass(x):
             x_in = np.reshape(x, newshape=(self.part.ndim, -1), order="F")
-            x_out = self.compute_mf_mass(x_in, mf_args=args)
+            x_out = self.compute_mf_mass(x_in, mf_args=mf_args)
             return np.ravel(x_out, order="F")
 
         def preconditioner(x):
@@ -449,17 +393,16 @@ class mechanical_problem(space_problem):
                 np.reshape(x, newshape=(self.part.ndim, -1), order="F"),
                 Pfun=fastdiag.apply_vectorial_preconditioner,
                 dotfun=block_dot_product,
-                args=args,
+                args=mf_args,
             )
             return np.ravel(output["sol"], order="F")
 
         def stiffness(x):
             x_in = np.reshape(x, newshape=(self.part.ndim, -1), order="F")
-            x_out = self.compute_mf_stiffness(x_in, mf_args=args)
+            x_out = self.compute_mf_stiffness(x_in, mf_args=mf_args)
             return np.ravel(x_out, order="F")
 
-        if k is None:
-            k = size_array - 2
+        k = min(k, size_array - 2)
         eigenvalues, eigenvectors = solv.eigs(
             N=size_array,
             Afun=stiffness,

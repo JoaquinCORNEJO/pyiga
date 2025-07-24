@@ -327,12 +327,8 @@ class J2plasticity1d(plasticity):
         assert np.ndim(strain_n1) > 2, "At least 3d array"
         assert np.shape(strain_n1)[0] == 1, "Only for 1d methods"
         strain_shape = tuple(np.shape(strain_n1)[2:])
-        plasticstrain_n0 = plastic_vars.get(
-            "plastic_strain", np.zeros_like(strain_n1)
-        )
-        plseq_n0 = plastic_vars.get(
-            "plastic_equivalent", np.zeros(shape=strain_shape)
-        )
+        plasticstrain_n0 = plastic_vars.get("plastic_strain", np.zeros_like(strain_n1))
+        plseq_n0 = plastic_vars.get("plastic_equivalent", np.zeros(shape=strain_shape))
         back_n0 = plastic_vars.get(
             "back_stress",
             np.zeros(shape=(self.kinematic_hardening._nb_chpar, 1, 1, *strain_shape)),
@@ -383,7 +379,9 @@ class J2plasticity1d(plasticity):
 
             # Update stiffness tensor
             if update_tangent:
-                consistent_tangent[0, 0, 0, 0, idx_scalar] = self.elastic_modulus * (1 - theta)
+                consistent_tangent[0, 0, 0, 0, idx_scalar] = self.elastic_modulus * (
+                    1 - theta
+                )
 
         plastic_vars["plastic_strain"] = plasticstrain_n1
         plastic_vars["plastic_equivalent"] = plseq_n1
@@ -475,12 +473,8 @@ class J2plasticity3d(plasticity):
         assert np.ndim(strain_n1) > 2, "At least 3d array"
         assert np.shape(strain_n1)[0] == 3, "Only for 3d methods"
         strain_shape = tuple(np.shape(strain_n1)[2:])
-        plasticstrain_n0 = plastic_vars.get(
-            "plastic_strain", np.zeros_like(strain_n1)
-        )
-        plseq_n0 = plastic_vars.get(
-            "plastic_equivalent", np.zeros(shape=strain_shape)
-        )
+        plasticstrain_n0 = plastic_vars.get("plastic_strain", np.zeros_like(strain_n1))
+        plseq_n0 = plastic_vars.get("plastic_equivalent", np.zeros(shape=strain_shape))
         back_n0 = plastic_vars.get(
             "back_stress",
             np.zeros(shape=(self.kinematic_hardening._nb_chpar, 3, 3, *strain_shape)),
@@ -516,13 +510,7 @@ class J2plasticity3d(plasticity):
             idx_ten3d = (slice(None), slice(None), slice(None), *idx_scalar)
 
             # Compute plastic-strain increment
-            (
-                dgamma,
-                hatback,
-                normal,
-                theta_1,
-                theta_2,
-            ) = self._prepare_parameters(
+            (dgamma, hatback, normal, theta_1, theta_2,) = self._prepare_parameters(
                 stress_trial[idx_ten2d], back_n0[idx_ten3d], plseq_n0[idx_scalar]
             )
 
@@ -530,9 +518,7 @@ class J2plasticity3d(plasticity):
             plseq_n1[idx_scalar] += dgamma
 
             # Update stress
-            stress_n1[idx_ten2d] -= (
-                2 * self.lame_mu * np.sqrt(1.5) * dgamma * normal
-            )
+            stress_n1[idx_ten2d] -= 2 * self.lame_mu * np.sqrt(1.5) * dgamma * normal
 
             # Update plastic strain
             plasticstrain_n1[idx_ten2d] += np.sqrt(1.5) * dgamma * normal
