@@ -30,7 +30,7 @@ def simulate(degree):
     material = J2plasticity1d({"elastic_modulus": YOUNG})
     material.add_density(RHO, is_uniform=True)
     problem = mechanical_problem(material, patch, boundary)
-    frequency = np.sqrt(problem.solve_eigenvalue_problem(which="SM")[0][1:])
+    frequency = np.sqrt(problem.solve_eigenvalue_problem(which="SM", k=nbel-2)[0][1:])
     return frequency
 
 
