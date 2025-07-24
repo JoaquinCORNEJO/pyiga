@@ -1,28 +1,29 @@
 from src.lib_nonlinear_solver import *
 
-
-def compute_residual(x, args):
-    b = [2.0, 1.0]
-    K = [[0.5 + x[1], -0.2], [-0.2, 1.0 + 2 * x[0]]]
-    return b - K @ x, {"x": x}
-
-
-def solve_linearization(res, args):
-    x = args["x"]
-    K = [[0.5 + x[1], -0.2], [-0.2, 1.0 + 2 * x[0]]]
-    return np.linalg.solve(K, res)
+def mat(x):
+    return np.array([
+        [0.5 + x[1], 0.2, 0.1],
+        [0.2, 1.0 + 2 * x[0], 0.0],
+        [0.1, 0.0, 2.0 + x[2]]
+    ])
 
 
-# x_k = np.array([0.0, 0.0])
-# for i in range(100):
-#     r, _ = compute_residual(x_k, {})
-#     inc = solve_linearization(r, {'x': x_k})
-#     x_k += inc
-# print(compute_residual(x_k, {})[0])
-# print(x_k)
+def compute_residual(x, b):
+    return b - mat(x) @ x, x
 
-solver = nonlinsolver(allow_linesearch=True, allow_fixed_point_acceleration=True)
-solver.solve([0.0, 0.0], compute_residual, solve_linearization, anderson=1)
+
+def solve_linearization(res, **args):
+    x = args["mf_args"]
+    return np.linalg.solve(mat(x), res)
+
+solver = nonlinsolver(maxiters=100, tolerance=1e-9)
+solver.modify_solver(allow_fixed_point_acceleration=True)
+solver.solve(
+    np.array([0.0, 0.0, 0.0]),
+    np.array([2.0, 1.0, 0.5]),
+    compute_residual,
+    solve_linearization
+)
 
 # import numpy as np
 
@@ -73,8 +74,3 @@ solver.solve([0.0, 0.0], compute_residual, solve_linearization, anderson=1)
 # # Ejecutar el método
 # sol = newton(F, J, x0)
 # print("Solución:", sol)
-
-
-# solver = nonlinsolver()
-# x = solver.solve([0.0, 0.0], F, solve_linearization, anderson_iters=1)
-# # # print(x)

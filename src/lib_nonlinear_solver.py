@@ -7,7 +7,7 @@ class nonlinsolver:
 
     _safeguard = 1e-14
     _maxiters_linesearch = 3
-    _anderson_history_size = 3
+    _anderson_history_size = 4
     _tiny_increment = 1e-4
 
     def __init__(
@@ -29,26 +29,71 @@ class nonlinsolver:
         self._allow_acceleration = allow_fixed_point_acceleration
         self._allow_linesearch = allow_linesearch
 
-    def _compute_anderson_step(self, R_hist: List, G_hist: List, dotfun: Callable):
-        m = len(R_hist)
-        mat = np.zeros((m - 1, m - 1))
-        vec = np.zeros(m - 1)
-        for i in range(1, m):
-            Acol = R_hist[i] - R_hist[0]
-            vec[i - 1] = -dotfun(Acol, R_hist[0])
-            mat[i - 1, i - 1] = dotfun(Acol, Acol)
+    def _compute_anderson_step(self, F_hist: List, X_hist: List, dotfun: Callable):
+
+        # # Get the size of vector and matrix
+        # m = len(F_hist)
+        # if m < 2:
+        #     return X_hist[-1]
+
+        # # Construct matrix and vector
+        # mat = np.zeros((m - 1, m - 1))
+        # rhs = np.zeros(m - 1)
+        # F_ref = F_hist[0]
+
+        # # Complete matrix and vector
+        # for i in range(1, m):
+        #     diff_i = F_hist[i] - F_ref
+        #     rhs[i - 1] = -dotfun(diff_i, F_ref)
+        #     mat[i - 1, i - 1] = dotfun(diff_i, diff_i)
+        #     for j in range(i + 1, m):
+        #         diff_j = F_hist[j] - F_ref
+        #         val = dotfun(diff_i, diff_j)
+        #         mat[i - 1, j - 1] = val
+        #         mat[j - 1, i - 1] = val
+
+        # # Solve linear system mat * beta = rhs
+        # beta = np.linalg.lstsq(mat, rhs, rcond=None)[0]
+
+        # # Construct alpha coefficients
+        # alpha = np.zeros(m)
+        # alpha[0] = 1.0 - np.sum(beta)
+        # alpha[1:] = beta
+
+        # # Compute linear combination
+        # x_new = np.zeros_like(X_hist[0])
+        # for i in range(m):
+        #     x_new += alpha[i] * X_hist[i]
+
+        # Get the size of vector and matrix
+        m = len(F_hist) - 1
+        if m == 0:
+            return X_hist[-1]
+
+        # Construct list of vectors
+        dF = [F_hist[i + 1] - F_hist[i] for i in range(m)]
+        dX = [X_hist[i + 1] - X_hist[i] for i in range(m)]
+
+        # Matrix lhs: (m x m)
+        mat = np.zeros((m, m))
+        for i in range(m):
+            mat[i, i] = dotfun(dF[i], dF[i])
             for j in range(i + 1, m):
-                Arow = R_hist[j] - R_hist[0]
-                mat[i - 1, j - 1] = dotfun(Acol, Arow)
-                mat[j - 1, i - 1] = mat[i - 1, j - 1]
-        beta = np.linalg.lstsq(mat, vec, rcond=None)[0]
-        alpha = np.zeros(m)
-        alpha[0] = 1.0 - np.sum(beta)
-        alpha[1:] = beta
-        increment = alpha[0] * G_hist[0]
-        for i in range(1, m):
-            increment += alpha[i] * G_hist[i]
-        return increment
+                mat[i, j] = dotfun(dF[i], dF[j])
+                mat[j, i] = mat[i, j]
+
+        # Vector rhs
+        rhs = np.array([dotfun(dF[i], F_hist[-1]) for i in range(m)])
+
+        # Solve linear system mat * gamma = rhs
+        gamma = np.linalg.lstsq(mat, rhs, rcond=None)[0]
+
+        # Compute linear combination
+        x_new = np.copy(X_hist[-1])
+        for i in range(m):
+            x_new -= gamma[i] * dX[i]
+
+        return x_new
 
     def _secant_line_search(
         self,
@@ -133,8 +178,8 @@ class nonlinsolver:
         inner_tolerance_old = None
         inner_tolerance = self._inner_tolerance
 
-        G_history: List = []
-        R_history: List = []
+        X_history: List = []
+        F_history: List = []
 
         # Extra data
         nonlinear_residual_list = []
@@ -151,7 +196,7 @@ class nonlinsolver:
             )
 
             norm_residual = np.linalg.norm(residual)
-            print(f"Nonlinear error: {norm_residual:.3e}")
+            print(f"Nonlinear error {iteration}: {norm_residual:.3e}")
             if save_information:
                 nonlinear_residual_list.append(norm_residual)
                 solution_history_list[f"noniter_{iteration}"] = np.copy(solution)
@@ -190,30 +235,23 @@ class nonlinsolver:
 
             if self._allow_acceleration:
                 new_solution = solution + incr_k
-                if len(R_history) == self._anderson_history_size:
-                    R_history.pop(0)
-                R_history.append(incr_k.copy())
-                if len(G_history) == self._anderson_history_size:
-                    G_history.pop(0)
-                G_history.append(new_solution.copy())
+                if len(F_history) == self._anderson_history_size:
+                    F_history.pop(0)
+                F_history.append(incr_k.copy())
+                if len(X_history) == self._anderson_history_size:
+                    X_history.pop(0)
+                X_history.append(new_solution.copy())
 
-                if (
-                    len(R_history) == self._anderson_history_size
-                    and len(G_history) == self._anderson_history_size
-                    and self._anderson_history_size > 1
-                ):
-                    try:
-                        incr_k = (
-                            self._compute_anderson_step(
-                                R_history, G_history, dotproduct
-                            )
-                            - solution
-                        )
+                try:
+                    incr_k = (
+                        self._compute_anderson_step(F_history, X_history, dotproduct)
+                        - solution
+                    )
 
-                    except np.linalg.LinAlgError:
-                        print(
-                            "LinAlgError in Anderson acceleration, fallback to simple increment"
-                        )
+                except np.linalg.LinAlgError:
+                    print(
+                        "LinAlgError in Anderson acceleration, fallback to simple increment"
+                    )
 
             if self._allow_linesearch and iteration > 0:
                 alpha = self._secant_line_search(
