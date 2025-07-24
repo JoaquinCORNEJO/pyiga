@@ -49,7 +49,7 @@ space_patch = singlepatch(geometry, quad_args={"quadrule": "gs"})
 
 # Create material
 material = heat_transfer_mat()
-material.add_conductivity(1.0, is_uniform=True, shape_tensor=1)
+material.add_conductivity(1.0, is_uniform=True, ndim=1)
 material.add_capacity(1.0, is_uniform=True)
 
 # Create boundary condition

@@ -194,12 +194,10 @@ time_patch = singlepatch(time_interval, quad_args=quad_args)
 # Add material
 material = heat_transfer_mat()
 material.add_capacity(1, is_uniform=True)
-material.add_conductivity(
-    np.array([[1.0, 0.5], [0.5, 2.0]]), is_uniform=True, shape_tensor=2
-)
+material.add_conductivity(np.array([[1.0, 0.5], [0.5, 2.0]]), is_uniform=True, ndim=2)
 material.add_ders_capacity(1, is_uniform=True)
 material.add_ders_conductivity(
-    np.array([[1.0, 0.5], [0.5, 2.0]]), is_uniform=True, shape_tensor=2
+    np.array([[1.0, 0.5], [0.5, 2.0]]), is_uniform=True, ndim=2
 )
 
 # Block boundaries
@@ -218,9 +216,7 @@ external_force = problem.assemble_volumetric_force(power_density)
 
 # Solve space time problem
 temperature = np.zeros_like(external_force)
-problem.solve_heat_transfer(
-    temperature, external_force, auto_inner_tolerance=True
-)
+problem.solve_heat_transfer(temperature, external_force, auto_inner_tolerance=True)
 finish = time.time()
 
 # Post processing

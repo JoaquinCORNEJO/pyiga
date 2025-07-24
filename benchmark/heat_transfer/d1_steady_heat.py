@@ -27,7 +27,7 @@ def simulate(degree, nbel, quad_args):
 
     # Create material
     material = heat_transfer_mat()
-    material.add_conductivity(1.0, is_uniform=True, shape_tensor=1)
+    material.add_conductivity(1.0, is_uniform=True, ndim=1)
 
     # Create boundary condition
     boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)

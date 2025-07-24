@@ -29,7 +29,7 @@ def simulate_incremental_bdf(
     # Add material
     material = heat_transfer_mat()
     material.add_capacity(1, is_uniform=True)
-    material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=2)
+    material.add_conductivity(conductivity_property, is_uniform=False, ndim=2)
 
     # Block boundaries
     boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
@@ -67,7 +67,7 @@ def simulate_incremental_bdf(
             tspan=(time_inc[0], time_inc[-1]),
             nsteps=nbel_time,
             norder=int(ivp[-1]),
-            type_solver="bdf"
+            type_solver="bdf",
         )
 
     return problem_inc, time_inc, temperature_inc

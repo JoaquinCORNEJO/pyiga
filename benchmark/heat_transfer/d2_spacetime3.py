@@ -80,7 +80,7 @@ time_patch = singlepatch(time_interval, quad_args=quad_args)
 material = heat_transfer_mat()
 material.add_capacity(1, is_uniform=True)
 material.add_conductivity(
-    2 * np.array([[1.0, 0.5], [0.5, 2.0]]), is_uniform=True, shape_tensor=2
+    2 * np.array([[1.0, 0.5], [0.5, 2.0]]), is_uniform=True, ndim=2
 )
 
 # Block boundaries

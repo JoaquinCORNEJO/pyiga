@@ -31,7 +31,7 @@ patch = singlepatch(geometry, quad_args={"quadrule": "wq"})
 
 # Create material
 material = heat_transfer_mat()
-material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
+material.add_conductivity(conductivity_property, is_uniform=False, ndim=1)
 material.add_capacity(1.0, is_uniform=True)
 
 # Create boundary condition
@@ -91,7 +91,7 @@ problem.solve_heat_transfer(
     tspan=(time_list[0], time_list[-1]),
     nsteps=len(time_list) - 1,
     norder=norder,
-    type_solver="bdf"
+    type_solver="bdf",
 )
 
 # Post-processing
