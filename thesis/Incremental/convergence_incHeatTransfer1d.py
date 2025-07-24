@@ -72,7 +72,7 @@ def simulate_ht(degree, cuts, nbel_time, quad_args, ivp="alpha"):
     # Add material
     material = heat_transfer_mat()
     material.add_capacity(1.0, is_uniform=True)
-    material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
+    material.add_conductivity(conductivity_property, is_uniform=False, ndim=1)
 
     # Block boundaries
     boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
@@ -109,7 +109,7 @@ def simulate_ht(degree, cuts, nbel_time, quad_args, ivp="alpha"):
             tspan=(time_inc[0], time_inc[-1]),
             nsteps=nbel_time,
             norder=int(ivp[-1]),
-            type_solver="bdf"
+            type_solver="bdf",
         )
 
     return problem, time_inc, temperature

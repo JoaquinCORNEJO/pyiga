@@ -53,7 +53,7 @@ class material:
     def set_tensor_property(
         self,
         inpt: Union[Callable, float, np.ndarray],
-        shape_tensor: int = 2,
+        ndim: int = 2,
         is_uniform: bool = False,
     ) -> Callable:
         def broadcast(inpt: np.ndarray, shape_tensor: int, shape_quadpts: np.ndarray):
@@ -66,11 +66,11 @@ class material:
         if is_uniform:
             if np.isscalar(inpt):
                 func: Callable = lambda args: broadcast(
-                    inpt * np.eye(shape_tensor), shape_tensor, args["shape_quadpts"]
+                    inpt * np.eye(ndim), ndim, args["shape_quadpts"]
                 )
             elif isinstance(inpt, np.ndarray):
                 func: Callable = lambda args: broadcast(
-                    inpt, shape_tensor, args["shape_quadpts"]
+                    inpt, ndim, args["shape_quadpts"]
                 )
             elif callable(inpt):
                 func: Callable = lambda args: inpt(args)
@@ -109,12 +109,12 @@ class heat_transfer_mat(material):
         self,
         inpt: Union[Callable, float, np.ndarray],
         is_uniform: bool,
-        shape_tensor: int,
+        ndim: int,
     ):
         if is_uniform:
             self._has_uniform_conductivity = True
         self.conductivity = self.set_tensor_property(
-            inpt, shape_tensor=shape_tensor, is_uniform=is_uniform
+            inpt, ndim=ndim, is_uniform=is_uniform
         )
 
     def add_ders_capacity(self, inpt: Union[Callable, float], is_uniform: bool):
@@ -124,16 +124,16 @@ class heat_transfer_mat(material):
         self,
         inpt: Union[Callable, float, np.ndarray],
         is_uniform: bool,
-        shape_tensor: int,
+        ndim: int,
     ):
         self.ders_conductivity = self.set_tensor_property(
-            inpt, shape_tensor=shape_tensor, is_uniform=is_uniform
+            inpt, ndim=ndim, is_uniform=is_uniform
         )
 
 
 class isotropic_hardening:
     def __init__(self, elastic_limit: float, iso_args: dict):
-        self.elas_limit: float = elastic_limit
+        self._elaslim: float = elastic_limit
         (
             self.iso_hardening_function,
             self.iso_dershardening_function,
@@ -152,23 +152,22 @@ class isotropic_hardening:
         return models[model_name](iso_args)
 
     def _model_none(self, args: dict) -> Tuple[Callable, Callable]:
-        return lambda a: 1e8 * self.elas_limit * np.ones_like(
-            a
-        ), lambda a: np.zeros_like(a)
+        factor = 1e8 * self._elaslim
+        return lambda a: factor * np.ones_like(a), lambda a: np.zeros_like(a)
 
     def _model_linear(self, args: dict) -> Tuple[Callable, Callable]:
         Eiso = args.get("Eiso")
-        return lambda a: self.elas_limit + Eiso * a, lambda a: Eiso * np.ones_like(a)
+        return lambda a: self._elaslim + Eiso * a, lambda a: Eiso * np.ones_like(a)
 
     def _model_swift(self, args: dict) -> Tuple[Callable, Callable]:
         e0, n = args.get("e0"), args.get("n")
-        return lambda a: self.elas_limit * (
+        return lambda a: self._elaslim * (
             1 + a / e0
-        ) ** n, lambda a: self.elas_limit * n / e0 * (1 + a / e0) ** (n - 1)
+        ) ** n, lambda a: self._elaslim * n / e0 * (1 + a / e0) ** (n - 1)
 
     def _model_voce(self, args: dict) -> Tuple[Callable, Callable]:
         ssat, beta = args.get("ssat"), args.get("beta")
-        return lambda a: self.elas_limit + ssat * (
+        return lambda a: self._elaslim + ssat * (
             1 - np.exp(-beta * a)
         ), lambda a: ssat * beta * np.exp(-beta * a)
 
@@ -203,23 +202,22 @@ class kinematic_hardening:
         back_n1: np.ndarray,
         normal: np.ndarray,
         dgamma: np.ndarray,
-        is_univariational: bool = True,
+        is_unidimensional: bool = True,
     ):
         for i in range(self._nb_chpar):
             [c, d] = self._chaboche_table[i, :]
             idx = (slice(i), slice(None), slice(None), *idx_scalar)
-            if is_univariational:
-                back_n1[idx] = (back_n0[idx] + c * normal * dgamma) / (1.0 + d * dgamma)
-            else:
-                back_n1[idx] = (back_n0[idx] + np.sqrt(1.5) * c * normal * dgamma) / (
-                    1.0 + d * dgamma
-                )
+            factor = c if is_unidimensional else c * np.sqrt(1.5)
+            back_n1[idx] = (back_n0[idx] + factor * normal * dgamma) / (
+                1.0 + d * dgamma
+            )
 
 
 class plasticity(material, ABC):
 
-    max_iter: int = 50
+    maxiters: int = 50
     threshold: float = 1e-8
+    safeguard: float = 1e-12
 
     def __init__(self, mat_args: dict):
         super().__init__()
@@ -264,13 +262,11 @@ class J2plasticity1d(plasticity):
     def __init__(self, mat_args: dict):
         super().__init__(mat_args=mat_args)
 
-    def set_linear_elastic_tensor(self, shape: Union[int, list], nbvars: int):
-        assert nbvars == 1, "Size problem"
+    def set_linear_elastic_tensor(self, shape: Union[int, list], ndim: int):
+        assert ndim == 1, "Size problem"
         if np.isscalar(shape):
             shape = np.array([shape], dtype=int)
-        tensor = self.elastic_modulus * np.ones(
-            (nbvars, nbvars, nbvars, nbvars, *shape)
-        )
+        tensor = self.elastic_modulus * np.ones((ndim, ndim, ndim, ndim, *shape))
         return tensor
 
     def eval_elastic_stress(self, strain: np.ndarray) -> np.ndarray:
@@ -284,9 +280,9 @@ class J2plasticity1d(plasticity):
         plseq_n0: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         dgamma = np.zeros_like(plseq_n0)
-        plseq_n1 = np.copy(plseq_n0)
         theta = np.zeros_like(plseq_n0)
-        for k in range(super().max_iter):
+        plseq_n1 = np.copy(plseq_n0)
+        for k in range(super().maxiters):
             (
                 sum_back,
                 hat_back,
@@ -304,7 +300,7 @@ class J2plasticity1d(plasticity):
             res = np.linalg.norm(fun_yield)
             if k == 0:
                 res_ref = res
-            if res <= max([super().threshold * res_ref, 1e-12]):
+            if res <= max([super().threshold * res_ref, super().safeguard]):
                 break
 
             normal = np.sign(shifted_stress)
@@ -345,11 +341,11 @@ class J2plasticity1d(plasticity):
         J2_trial = np.abs(
             vonmises_trial
         ) - self.isotropic_hardening.iso_hardening_function(plseq_n0)
-        stress_n1 = np.copy(stress_trial)
-        plasticstrain_n1 = np.copy(plasticstrain_n0)
-        plseq_n1 = np.copy(plseq_n0)
-        back_n1 = np.copy(back_n0)
-        consistent_tangent = self.set_linear_elastic_tensor(strain_shape, nbvars=1)
+        stress_n1 = stress_trial
+        plasticstrain_n1 = plasticstrain_n0
+        plseq_n1 = plseq_n0
+        back_n1 = back_n0
+        consistent_tangent = self.set_linear_elastic_tensor(strain_shape, ndim=1)
 
         if np.any(J2_trial > super().threshold * self.elastic_limit):
 
@@ -374,7 +370,7 @@ class J2plasticity1d(plasticity):
 
             # Update backstress
             self.kinematic_hardening.update_back_stress(
-                idx_scalar, back_n0, back_n1, normal, dgamma, is_univariational=True
+                idx_scalar, back_n0, back_n1, normal, dgamma, is_unidimensional=True
             )
 
             # Update stiffness tensor
@@ -394,14 +390,14 @@ class J2plasticity3d(plasticity):
         super().__init__(mat_args=mat_args)
 
     def set_linear_elastic_tensor(
-        self, shape: Union[int, list], nbvars: int
+        self, shape: Union[int, list], ndim: int
     ) -> np.ndarray:
-        assert nbvars > 1, "Size problem"
+        assert ndim > 1, "Size problem"
+        identity = np.identity(ndim)
         if np.isscalar(shape):
             shape = np.array([shape], dtype=int)
-        tensor = np.zeros((nbvars, nbvars, nbvars, nbvars, *shape))
-        identity = np.identity(nbvars)
-        indices = np.indices((nbvars, nbvars, nbvars, nbvars), dtype=int)
+        tensor = np.zeros((ndim, ndim, ndim, ndim, *shape))
+        indices = np.indices((ndim, ndim, ndim, ndim), dtype=int)
         for i, j, l, m in zip(*[arr.flatten() for arr in indices]):
             tensor[i, j, l, m, ...] = self.lame_lambda * identity[i, l] * identity[
                 j, m
@@ -431,7 +427,7 @@ class J2plasticity3d(plasticity):
         dgamma, plseq_n1 = np.zeros_like(plseq_n0), np.copy(plseq_n0)
         theta_2, theta_1 = np.zeros_like(plseq_n0), np.zeros_like(plseq_n0)
 
-        for k in range(super().max_iter):
+        for k in range(super().maxiters):
             (
                 sum_back,
                 hat_back,
@@ -449,7 +445,7 @@ class J2plasticity3d(plasticity):
             res = np.linalg.norm(fun_yield)
             if k == 0:
                 res_ref = res
-            if res <= max([super().threshold * res_ref, 1e-12]):
+            if res <= max([super().threshold * res_ref, super().safeguard]):
                 break
 
             normal = shifted_stress / norm_shifted
@@ -493,14 +489,15 @@ class J2plasticity3d(plasticity):
         J2_trial = vonmises_trial - self.isotropic_hardening.iso_hardening_function(
             plseq_n0
         )
+
+        # Set default values
         stress_n1 = stress_trial
         plasticstrain_n1 = plasticstrain_n0
         plseq_n1 = plseq_n0
         back_n1 = back_n0
-        lame_lambda, lame_mu = self.lame_lambda * np.ones_like(
-            J2_trial
-        ), self.lame_mu * np.ones_like(J2_trial)
-        consistent_tangent = self.set_linear_elastic_tensor(strain_shape, nbvars=3)
+        lame_lambda = self.lame_lambda * np.ones_like(J2_trial)
+        lame_mu = self.lame_mu * np.ones_like(J2_trial)
+        consistent_tangent = self.set_linear_elastic_tensor(strain_shape, ndim=3)
 
         if np.any(J2_trial > super().threshold * self.elastic_limit):
 
@@ -530,7 +527,7 @@ class J2plasticity3d(plasticity):
                 back_n1,
                 normal,
                 dgamma,
-                is_univariational=False,
+                is_unidimensional=False,
             )
 
             # Update stiffness tensor

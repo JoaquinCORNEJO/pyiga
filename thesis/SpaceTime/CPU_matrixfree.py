@@ -45,13 +45,13 @@ if RUNSIMU:
             material.add_conductivity(
                 np.array([[1.0, 0.5, 0], [0.5, 2.0, 0], [0, 0, 1]]),
                 is_uniform=True,
-                shape_tensor=3,
+                ndim=3,
             )
             material.add_ders_capacity(1, is_uniform=True)
             material.add_ders_conductivity(
                 np.array([[1.0, 0.5, 0], [0.5, 2.0, 0], [0, 0, 1]]),
                 is_uniform=True,
-                shape_tensor=3,
+                ndim=3,
             )
 
             # Block boundaries

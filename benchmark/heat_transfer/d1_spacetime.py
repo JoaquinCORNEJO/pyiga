@@ -82,7 +82,7 @@ time_patch = singlepatch(time_interval, quad_args=quad_args)
 
 # Create material
 material = heat_transfer_mat()
-material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
+material.add_conductivity(conductivity_property, is_uniform=False, ndim=1)
 material.add_capacity(1.0, is_uniform=True)
 
 # Create boundary condition

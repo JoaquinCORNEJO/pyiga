@@ -79,7 +79,7 @@ def simulate_incremental(degree, cuts, nbel_time):
     # Add material
     material = heat_transfer_mat()
     material.add_capacity(1.0, is_uniform=True)
-    material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
+    material.add_conductivity(conductivity_property, is_uniform=False, ndim=1)
 
     # Block boundaries
     boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nb_vars_per_ctrlpt=1)
@@ -122,7 +122,7 @@ def simulate_spacetime(degree, cuts, nbel_time, auto_inner_tolerance=True):
     # Add material
     material = heat_transfer_mat()
     material.add_capacity(1, is_uniform=True)
-    material.add_conductivity(conductivity_property, is_uniform=False, shape_tensor=1)
+    material.add_conductivity(conductivity_property, is_uniform=False, ndim=1)
 
     # Block boundaries
     boundary = boundary_condition(nbctrlpts=space_patch.nbctrlpts, nb_vars_per_ctrlpt=1)

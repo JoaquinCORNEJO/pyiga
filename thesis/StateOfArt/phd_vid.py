@@ -396,7 +396,7 @@ elif VIDCASE == 3:  # Welding
         # Add material
         material = heat_transfer_mat()
         material.add_capacity(1, is_uniform=True)
-        material.add_conductivity(2, is_uniform=True, shape_tensor=2)
+        material.add_conductivity(2, is_uniform=True, ndim=2)
 
         # Block boundaries
         boundary_inc = boundary_condition(

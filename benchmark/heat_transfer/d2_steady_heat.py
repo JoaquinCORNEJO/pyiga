@@ -90,9 +90,7 @@ def simulate(degree, nbel, quad_args=None):
     if quad_args is None:
         quad_args = {"quadrule": "gs", "type": "leg"}
     material = heat_transfer_mat()
-    material.add_conductivity(
-        np.array([[1, 0.5], [0.5, 2]]), is_uniform=True, shape_tensor=2
-    )
+    material.add_conductivity(np.array([[1, 0.5], [0.5, 2]]), is_uniform=True, ndim=2)
     geometry = mygeomdl(geo_args).export_geometry()
     patch = singlepatch(geometry, quad_args=quad_args)
 
