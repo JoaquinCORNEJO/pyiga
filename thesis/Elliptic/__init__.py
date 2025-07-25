@@ -1,7 +1,7 @@
 from src.__init__ import *
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch
-from src.lib_material import heat_transfer_mat, J2plasticity3d
+from src.lib_material import heat_transfer_mat, J2plasticity
 from src.lib_boundary import boundary_condition, flatten_list
 from src.lib_tensor_maths import bspline_operations
 from src.single_patch.lib_job import space_problem
@@ -263,7 +263,7 @@ def simulate_el(degree, cuts, quad_args=None, preconditioner="jm", linsolver="GM
     if quad_args is None:
         quad_args = {"quadrule": "gs", "type": "leg"}
 
-    material = J2plasticity3d({"elastic_modulus": YOUNG, "poisson_ratio": POISSON})
+    material = J2plasticity({"elastic_modulus": YOUNG, "poisson_ratio": POISSON})
     geometry = mygeomdl(geo_parameters).export_geometry()
     patch = singlepatch(geometry, quad_args=quad_args)
 

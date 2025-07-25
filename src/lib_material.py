@@ -199,7 +199,6 @@ class kinematic_hardening:
     def update_back_stress(
         self,
         idx_scalar: np.ndarray,
-        back_n0: np.ndarray,
         back_n1: np.ndarray,
         normal: np.ndarray,
         dgamma: np.ndarray,
@@ -209,7 +208,7 @@ class kinematic_hardening:
             [c, d] = self._chaboche_table[i, :]
             idx = (slice(i), slice(None), slice(None), *idx_scalar)
             factor = c if is_unidimensional else c * np.sqrt(1.5)
-            back_n1[idx] = (back_n0[idx] + factor * normal * dgamma) / (
+            back_n1[idx] = (back_n1[idx] + factor * normal * dgamma) / (
                 1.0 + d * dgamma
             )
 
@@ -247,19 +246,19 @@ class plasticity(material, ABC):
         )
 
     def _solve_nonlinearity(
-        self, plseq: np.ndarray, compute_residual: Callable
+        self, plastic_equivalent: np.ndarray, compute_residual: Callable
     ) -> Tuple[np.ndarray, dict]:
         def solve_linearization(yield_fun: np.ndarray, **kwargs: dict):
             ders_yield_fun = kwargs.get("ders_yield_fun")
             assert ders_yield_fun is not None
             return yield_fun / ders_yield_fun
 
-        dgamma = np.zeros_like(plseq)
+        dplseq = np.zeros_like(plastic_equivalent)
         nonlinsolv = nonlinsolver(tolerance=self.threshold, maxiters=self.maxiters)
         output = nonlinsolv.solve(
-            dgamma, None, compute_residual, solve_linearization, verbose=False
+            dplseq, None, compute_residual, solve_linearization, verbose=False
         )
-        return dgamma, output["extra_args"]
+        return dplseq, output["extra_args"]
 
     @abstractmethod
     def eval_elastic_stress(self):
@@ -274,20 +273,61 @@ class plasticity(material, ABC):
         pass
 
 
-class J2plasticity1d(plasticity):
-    def __init__(self, mat_args: dict):
+class J2plasticity(plasticity):
+    def __init__(self, mat_args: dict, is_unidimensional: bool = False):
         super().__init__(mat_args=mat_args)
+        self._is_unidim = is_unidimensional
 
     def set_linear_elastic_tensor(self, shape: Union[int, list], ndim: int):
-        assert ndim == 1, "Size problem"
         if np.isscalar(shape):
             shape = np.array([shape], dtype=int)
         tensor = self.elastic_modulus * np.ones((ndim, ndim, ndim, ndim, *shape))
+        if not self._is_unidim:
+            identity = np.identity(ndim)
+            tensor = np.zeros((ndim, ndim, ndim, ndim, *shape))
+            indices = np.indices((ndim, ndim, ndim, ndim), dtype=int)
+            for i, j, l, m in zip(*[arr.flatten() for arr in indices]):
+                tensor[i, j, l, m, ...] = self.lame_lambda * identity[i, l] * identity[
+                    j, m
+                ] + self.lame_mu * (
+                    identity[i, m] * identity[j, l] + identity[i, j] * identity[l, m]
+                )
         return tensor
 
     def eval_elastic_stress(self, strain: np.ndarray) -> np.ndarray:
-        stress = self.elastic_modulus * strain
+        if self._is_unidim:
+            stress = self.elastic_modulus * strain
+        else:
+            trace_strain = compute_trace(strain)
+            stress = 2 * self.lame_mu * strain
+            for i in range(strain.shape[0]):
+                stress[i, i, ...] += self.lame_lambda * trace_strain
         return stress
+
+    def eval_von_mises_stress(self, stress: np.ndarray) -> np.ndarray:
+        if self._is_unidim:
+            return compute_norm_tensor(stress)
+        else:
+            stress_dev = compute_deviatoric(stress)
+            return np.sqrt(1.5) * compute_norm_tensor(stress_dev)
+
+    def _compute_trials(self, strain_n1, plasticstrain_n0, back_n0, plseq_n0):
+        # Compute trial stress
+        strain_trial = strain_n1 - plasticstrain_n0
+        stress_trial = self.eval_elastic_stress(strain_trial)
+
+        # Compute shifted stress
+        vonmises_trial = self.eval_von_mises_stress(
+            stress_trial - np.sum(back_n0, axis=0)
+        )
+        if self._is_unidim:
+            vonmises_trial = np.ravel(vonmises_trial)
+
+        # Check yield status
+        J2_trial = vonmises_trial - self.isotropic_hardening.iso_hardening_function(
+            plseq_n0
+        )
+        return stress_trial, J2_trial
 
     def _prepare_parameters(
         self,
@@ -298,166 +338,33 @@ class J2plasticity1d(plasticity):
         def compute_residual(dg: np.ndarray, f: None):
             output = self.kinematic_hardening.sum_chaboche_terms(dg, back_n0)
             shft_stress = stress_trial - output[0]
-            shft_stress_norm = np.ravel(np.abs(shft_stress))
-            normal_shft_stress = np.sign(shft_stress)
-            plseq_n1 = plseq_n0 + dg
-            yield_fun = (
-                -shft_stress_norm
-                + (self.elastic_modulus + output[2]) * dg
-                + self.isotropic_hardening.iso_hardening_function(plseq_n1)
-            )
-            ders_yield_fun = (
-                compute_double_contraction(normal_shft_stress, output[1])
-                - (self.elastic_modulus + output[3])
-                - self.isotropic_hardening.iso_dershardening_function(plseq_n1)
-            )
-            extra_args = dict(
-                hat_back=output[1],
-                shifted_stress_norm=shft_stress_norm,
-                normal_shifted_stress=normal_shft_stress,
-                ders_yield_fun=ders_yield_fun,
-            )
-            return yield_fun, extra_args
-
-        dgamma, extra_args = super()._solve_nonlinearity(plseq_n0, compute_residual)
-        ders_yield_fun = extra_args.get("ders_yield_fun")
-        normal_shifted_stress = extra_args.get("normal_shifted_stress")
-        hat_back = extra_args.get("hat_back")
-
-        if ders_yield_fun is not None:
-            theta = -self.elastic_modulus / ders_yield_fun
-
-        return dgamma, hat_back, normal_shifted_stress, theta
-
-    def return_mapping(
-        self, strain_n1: np.ndarray, plastic_vars: dict, update_tangent: bool = True
-    ) -> Tuple[np.ndarray, dict, dict]:
-        """Return mapping algorithm for multidimensional rate-independent plasticity."""
-
-        assert np.ndim(strain_n1) > 2, "At least 3d array"
-        assert np.shape(strain_n1)[0] == 1, "Only for 1d methods"
-        strain_shape = tuple(np.shape(strain_n1)[2:])
-        plasticstrain_n0 = plastic_vars.get("plastic_strain", np.zeros_like(strain_n1))
-        plseq_n0 = plastic_vars.get("plastic_equivalent", np.zeros(shape=strain_shape))
-        back_n0 = plastic_vars.get(
-            "back_stress",
-            np.zeros(shape=(self.kinematic_hardening._nb_chpar, 1, 1, *strain_shape)),
-        )
-
-        # Compute trial stress
-        strain_trial = strain_n1 - plasticstrain_n0
-        stress_trial = self.eval_elastic_stress(strain_trial)
-
-        # Compute shifted stress
-        vonmises_trial = np.ravel(stress_trial - np.sum(back_n0, axis=0))
-
-        # Check yield status
-        J2_trial = np.abs(
-            vonmises_trial
-        ) - self.isotropic_hardening.iso_hardening_function(plseq_n0)
-        stress_n1 = np.copy(stress_trial)
-        plasticstrain_n1 = np.copy(plasticstrain_n0)
-        plseq_n1 = np.copy(plseq_n0)
-        back_n1 = np.copy(back_n0)
-        consistent_tangent = self.set_linear_elastic_tensor(strain_shape, ndim=1)
-
-        if np.any(J2_trial > super().threshold * self.elastic_limit):
-
-            # Select the quadrature points
-            idx_scalar = np.nonzero(J2_trial > super().threshold * self.elastic_limit)
-            idx_ten2d = (slice(None), slice(None), *idx_scalar)
-            idx_ten3d = (slice(None), slice(None), slice(None), *idx_scalar)
-
-            # Compute plastic-strain increment
-            dgamma, _, normal, theta = self._prepare_parameters(
-                stress_trial[idx_ten2d], back_n0[idx_ten3d], plseq_n0[idx_scalar]
-            )
-
-            # Update internal hardening variable
-            plseq_n1[idx_scalar] += dgamma
-
-            # Update stress
-            stress_n1[idx_ten2d] -= self.elastic_modulus * dgamma * normal
-
-            # Update plastic strain
-            plasticstrain_n1[idx_ten2d] += dgamma * normal
-
-            # Update backstress
-            self.kinematic_hardening.update_back_stress(
-                idx_scalar, back_n0, back_n1, normal, dgamma, is_unidimensional=True
-            )
-
-            # Update stiffness tensor
-            if update_tangent:
-                consistent_tangent[0, 0, 0, 0, idx_scalar] = self.elastic_modulus * (
-                    1 - theta
-                )
-
-        new_plastic_vars = {
-            "plastic_strain": plasticstrain_n1,
-            "plastic_equivalent": plseq_n1,
-            "back_stress": back_n1,
-        }
-        return stress_n1, {
-            "consistent_tangent": consistent_tangent,
-            "new_plastic_vars": new_plastic_vars,
-        }
-
-
-class J2plasticity3d(plasticity):
-    def __init__(self, mat_args: dict):
-        super().__init__(mat_args=mat_args)
-
-    def set_linear_elastic_tensor(
-        self, shape: Union[int, list], ndim: int
-    ) -> np.ndarray:
-        assert ndim > 1, "Size problem"
-        identity = np.identity(ndim)
-        if np.isscalar(shape):
-            shape = np.array([shape], dtype=int)
-        tensor = np.zeros((ndim, ndim, ndim, ndim, *shape))
-        indices = np.indices((ndim, ndim, ndim, ndim), dtype=int)
-        for i, j, l, m in zip(*[arr.flatten() for arr in indices]):
-            tensor[i, j, l, m, ...] = self.lame_lambda * identity[i, l] * identity[
-                j, m
-            ] + self.lame_mu * (
-                identity[i, m] * identity[j, l] + identity[i, j] * identity[l, m]
-            )
-        return tensor
-
-    def eval_elastic_stress(self, strain: np.ndarray) -> np.ndarray:
-        trace_strain = compute_trace(strain)
-        stress = 2 * self.lame_mu * strain
-        for i in range(strain.shape[0]):
-            stress[i, i, ...] += self.lame_lambda * trace_strain
-        return stress
-
-    def eval_von_mises_stress(self, stress: np.ndarray) -> np.ndarray:
-        stress_dev = compute_deviatoric(stress)
-        stress_vm = np.sqrt(1.5) * compute_norm_tensor(stress_dev)
-        return stress_vm
-
-    def _prepare_parameters(
-        self,
-        stress_trial: np.ndarray,
-        back_n0: np.ndarray,
-        plseq_n0: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        def compute_residual(dg: np.ndarray, f: None):
-            output = self.kinematic_hardening.sum_chaboche_terms(dg, back_n0)
-            shft_stress = compute_deviatoric(stress_trial - output[0])
+            if not self._is_unidim:
+                shft_stress = compute_deviatoric(shft_stress)
             shft_stress_norm = compute_norm_tensor(shft_stress)
-            normal_shft_stress = shft_stress / shft_stress_norm
-            plseq_n1 = plseq_n0 + dg
-            yield_fun = (
-                -np.sqrt(1.5) * shft_stress_norm
-                + 1.5 * (2 * self.lame_mu + output[2]) * dg
-                + self.isotropic_hardening.iso_hardening_function(plseq_n1)
+            normal_shft_stress = (
+                np.sign(shft_stress)
+                if self._is_unidim
+                else shft_stress / shft_stress_norm
             )
-            ders_yield_fun = (
-                np.sqrt(1.5) * compute_double_contraction(normal_shft_stress, output[1])
-                - 1.5 * (2 * self.lame_mu + output[3])
-                - self.isotropic_hardening.iso_dershardening_function(plseq_n1)
+            plseq_n1 = plseq_n0 + dg
+            if self._is_unidim:
+                yield_fun = -shft_stress_norm + (self.elastic_modulus + output[2]) * dg
+            else:
+                yield_fun = (
+                    -np.sqrt(1.5) * shft_stress_norm
+                    + 1.5 * (2 * self.lame_mu + output[2]) * dg
+                )
+            yield_fun += self.isotropic_hardening.iso_hardening_function(plseq_n1)
+            if self._is_unidim:
+                ders_yield_fun = compute_double_contraction(
+                    normal_shft_stress, output[1]
+                ) - (self.elastic_modulus + output[3])
+            else:
+                ders_yield_fun = np.sqrt(1.5) * compute_double_contraction(
+                    normal_shft_stress, output[1]
+                ) - 1.5 * (2 * self.lame_mu + output[3])
+            ders_yield_fun -= self.isotropic_hardening.iso_dershardening_function(
+                plseq_n1
             )
             extra_args = dict(
                 hat_back=output[1],
@@ -473,12 +380,17 @@ class J2plasticity3d(plasticity):
         normal_shifted_stress = extra_args.get("normal_shifted_stress")
         hat_back = extra_args.get("hat_back")
 
-        if ders_yield_fun is not None:
-            theta_1 = -3 * self.lame_mu / ders_yield_fun
-        if shifted_stress_norm is not None:
-            theta_2 = 2 * self.lame_mu * dgamma * np.sqrt(1.5) / shifted_stress_norm
+        if self._is_unidim:
+            if ders_yield_fun is not None:
+                theta = -self.elastic_modulus / ders_yield_fun
+        else:
+            if ders_yield_fun is not None:
+                theta_1 = -3 * self.lame_mu / ders_yield_fun
+            if shifted_stress_norm is not None:
+                theta_2 = 2 * self.lame_mu * dgamma * np.sqrt(1.5) / shifted_stress_norm
+            theta = (theta_1, theta_2)
 
-        return dgamma, hat_back, normal_shifted_stress, theta_1, theta_2
+        return dgamma, hat_back, normal_shifted_stress, theta
 
     def return_mapping(
         self, strain_n1: np.ndarray, plastic_vars: dict, update_tangent: bool = True
@@ -486,27 +398,22 @@ class J2plasticity3d(plasticity):
         """Return mapping algorithm for multidimensional rate-independent plasticity."""
 
         assert np.ndim(strain_n1) > 2, "At least 3d array"
-        assert np.shape(strain_n1)[0] == 3, "Only for 3d methods"
+        ndim = np.shape(strain_n1)[0]
+        assert ndim in [1, 3], "Only for 1d or 3d methods"
+
+        # Recover last values of internal variables
         strain_shape = tuple(np.shape(strain_n1)[2:])
+        nb_chpar = self.kinematic_hardening._nb_chpar
         plasticstrain_n0 = plastic_vars.get("plastic_strain", np.zeros_like(strain_n1))
         plseq_n0 = plastic_vars.get("plastic_equivalent", np.zeros(shape=strain_shape))
         back_n0 = plastic_vars.get(
             "back_stress",
-            np.zeros(shape=(self.kinematic_hardening._nb_chpar, 3, 3, *strain_shape)),
+            np.zeros(shape=(nb_chpar, ndim, ndim, *strain_shape)),
         )
 
-        # Compute trial stress
-        strain_trial = strain_n1 - plasticstrain_n0
-        stress_trial = self.eval_elastic_stress(strain_trial)
-
-        # Compute shifted stress
-        vonmises_trial = self.eval_von_mises_stress(
-            stress_trial - np.sum(back_n0, axis=0)
-        )
-
-        # Check yield status
-        J2_trial = vonmises_trial - self.isotropic_hardening.iso_hardening_function(
-            plseq_n0
+        # Compute trial stress and trial J2 yield function
+        stress_trial, J2_trial = self._compute_trials(
+            strain_n1, plasticstrain_n0, back_n0, plseq_n0
         )
 
         # Set default values
@@ -514,9 +421,11 @@ class J2plasticity3d(plasticity):
         plasticstrain_n1 = np.copy(plasticstrain_n0)
         plseq_n1 = np.copy(plseq_n0)
         back_n1 = np.copy(back_n0)
-        lame_lambda = self.lame_lambda * np.ones_like(J2_trial)
-        lame_mu = self.lame_mu * np.ones_like(J2_trial)
-        consistent_tangent = self.set_linear_elastic_tensor(strain_shape, ndim=3)
+        consistent_tangent = self.set_linear_elastic_tensor(strain_shape, ndim=ndim)
+
+        if not self._is_unidim:
+            lame_lambda = self.lame_lambda * np.ones_like(J2_trial)
+            lame_mu = self.lame_mu * np.ones_like(J2_trial)
 
         if np.any(J2_trial > super().threshold * self.elastic_limit):
 
@@ -526,7 +435,7 @@ class J2plasticity3d(plasticity):
             idx_ten3d = (slice(None), slice(None), slice(None), *idx_scalar)
 
             # Compute plastic-strain increment
-            (dgamma, hatback, normal, theta_1, theta_2,) = self._prepare_parameters(
+            dgamma, hatback, normal, theta = self._prepare_parameters(
                 stress_trial[idx_ten2d], back_n0[idx_ten3d], plseq_n0[idx_scalar]
             )
 
@@ -534,51 +443,56 @@ class J2plasticity3d(plasticity):
             plseq_n1[idx_scalar] += dgamma
 
             # Update stress
-            stress_n1[idx_ten2d] -= 2 * self.lame_mu * np.sqrt(1.5) * dgamma * normal
+            factor = (
+                self.elastic_modulus
+                if self._is_unidim
+                else 2.0 * self.lame_mu * np.sqrt(1.5)
+            )
+            stress_n1[idx_ten2d] -= factor * dgamma * normal
 
             # Update plastic strain
-            plasticstrain_n1[idx_ten2d] += np.sqrt(1.5) * dgamma * normal
+            factor = 1.0 if self._is_unidim else np.sqrt(1.5)
+            plasticstrain_n1[idx_ten2d] += factor * dgamma * normal
 
             # Update backstress
             self.kinematic_hardening.update_back_stress(
-                idx_scalar,
-                back_n0,
-                back_n1,
-                normal,
-                dgamma,
-                is_unidimensional=False,
+                idx_scalar, back_n1, normal, dgamma, is_unidimensional=self._is_unidim
             )
 
             # Update stiffness tensor
             if update_tangent:
-                identity = np.identity(3)
-                omega_1 = -2 * self.lame_mu * (theta_1 - theta_2)
-                omega_2 = -np.sqrt(2.0 / 3.0) * theta_1 * theta_2
-                lame_lambda[idx_scalar] += 2.0 / 3.0 * self.lame_mu * theta_2
-                lame_mu[idx_scalar] -= self.lame_mu * theta_2
-                indices = np.indices((3, 3, 3, 3), dtype=int)
-                for i, j, l, m in zip(*[arr.flatten() for arr in indices]):
-                    consistent_tangent[i, j, l, m, idx_scalar] = (
-                        lame_lambda[idx_scalar] * identity[i, l] * identity[j, m]
-                        + lame_mu[idx_scalar]
-                        * (
-                            identity[i, m] * identity[j, l]
-                            + identity[i, j] * identity[l, m]
+                if self._is_unidim:
+                    consistent_tangent[
+                        0, 0, 0, 0, idx_scalar
+                    ] = self.elastic_modulus * (1 - theta)
+                else:
+                    identity = np.identity(ndim)
+                    omega_1 = -2 * self.lame_mu * (theta[0] - theta[1])
+                    omega_2 = -np.sqrt(2.0 / 3.0) * theta[0] * theta[1]
+                    lame_lambda[idx_scalar] += 2.0 / 3.0 * self.lame_mu * theta[1]
+                    lame_mu[idx_scalar] -= self.lame_mu * theta[1]
+                    indices = np.indices((ndim, ndim, ndim, ndim), dtype=int)
+                    for i, j, l, m in zip(*[arr.flatten() for arr in indices]):
+                        consistent_tangent[i, j, l, m, idx_scalar] = (
+                            lame_lambda[idx_scalar] * identity[i, l] * identity[j, m]
+                            + lame_mu[idx_scalar]
+                            * (
+                                identity[i, m] * identity[j, l]
+                                + identity[i, j] * identity[l, m]
+                            )
+                            + omega_1 * (normal[i, l, ...] * normal[j, m, ...])
+                            + omega_2
+                            * (
+                                hatback[i, l, ...] * normal[j, m, ...]
+                                - normal[i, l, ...] * hatback[j, m, ...]
+                            )
                         )
-                        + omega_1 * (normal[i, l, ...] * normal[j, m, ...])
-                        + omega_2
-                        * (
-                            hatback[i, l, ...] * normal[j, m, ...]
-                            - normal[i, l, ...] * hatback[j, m, ...]
-                        )
-                    )
 
         new_plastic_vars = {
             "plastic_strain": plasticstrain_n1,
             "plastic_equivalent": plseq_n1,
             "back_stress": back_n1,
         }
-
         return stress_n1, {
             "consistent_tangent": consistent_tangent,
             "new_plastic_vars": new_plastic_vars,
