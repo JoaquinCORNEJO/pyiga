@@ -1,5 +1,5 @@
 from . import *
-from typing import Callable, Union, Dict, List
+from typing import Callable, Union, Dict, List, Tuple
 import time
 
 
@@ -29,7 +29,9 @@ class nonlinsolver:
         self._allow_acceleration = allow_fixed_point_acceleration
         self._allow_linesearch = allow_line_search
 
-    def _compute_anderson_step(self, F_hist: List, X_hist: List, dotfun: Callable):
+    def _compute_anderson_step(
+        self, F_hist: List[np.ndarray], X_hist: List[np.ndarray], dotfun: Callable
+    ) -> np.ndarray:
 
         # # Get the size of vector and matrix
         # m = len(F_hist)
@@ -103,7 +105,7 @@ class nonlinsolver:
         residual: Callable,
         update_variables: Callable,
         **res_args,
-    ):
+    ) -> float:
 
         sol_copy = deepcopy(sol_current)
         res_args_copy = deepcopy(res_args)
@@ -151,8 +153,8 @@ class nonlinsolver:
         linsolv_args: Dict = {},
         inner_tolerance_args: Dict = {},
         save_information: bool = False,
-        verbose: bool = True
-    ):
+        verbose: bool = True,
+    ) -> Tuple[dict, dict]:
         "Solver of the nonlinear problem res(x) = 0."
 
         def default_update_variables(x_curr, incr_curr, **kwargs):
@@ -192,7 +194,7 @@ class nonlinsolver:
         start = time.process_time()
         for iteration in range(self._max_iters):
 
-            residual, mf_args = compute_residual(
+            residual, extra_args = compute_residual(
                 solution, external_force, **residual_args
             )
 
@@ -229,11 +231,9 @@ class nonlinsolver:
             if save_information:
                 linear_tolerance_list.append(inner_tolerance)
 
-            kwargs = linsolv_args | {
-                "mf_args": mf_args,
-                "inner_tolerance": inner_tolerance,
-            }
-            incr_k: np.ndarray = solve_linearization(residual, **kwargs)
+            linsolv_args.update(extra_args)
+            linsolv_args.update({"inner_tolerance": inner_tolerance})
+            incr_k: np.ndarray = solve_linearization(residual, **linsolv_args)
 
             if self._allow_acceleration:
                 new_solution = solution + incr_k
@@ -281,6 +281,7 @@ class nonlinsolver:
             nonlinear_rate_list=nonlinear_rate_list,
             linear_tolerance_list=linear_tolerance_list,
             solution_history_list=solution_history_list,
+            extra_args=extra_args,
         )
 
         return extra_args

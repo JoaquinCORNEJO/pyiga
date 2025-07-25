@@ -168,7 +168,7 @@ class mechanical_problem(space_problem):
         self, displacement: np.ndarray, external_force: np.ndarray, **kwargs
     ) -> Tuple[np.ndarray, dict]:
 
-        plastic_vars: dict = kwargs.get("plastic_vars")
+        plastic_vars: dict = kwargs.get("plastic_vars", {})
         if self.update_properties:
             self.clear_properties()
         convert_to_3d = False if self.part.ndim == 1 else True
@@ -180,9 +180,7 @@ class mechanical_problem(space_problem):
 
     def _solve_linearized_system(self, array_in: np.ndarray, **kwargs) -> np.ndarray:
 
-        mf_args: dict = kwargs.get("mf_args")
         inner_tolerance: float = kwargs.get("inner_tolerance")
-
         if self._update_preconditioner:
             self.preconditioner.add_scalar_space_time_correctors(
                 stiffness_corrector=self._scalar_mean_stiffness
@@ -195,7 +193,7 @@ class mechanical_problem(space_problem):
             dotfun=block_dot_product,
             cleanfun=clean_dirichlet,
             dod=self.sp_constraint_ctrlpts,
-            args=mf_args,
+            args=kwargs,
             tolerance=inner_tolerance,
         )
         self._linear_residual_list.append(output["res"])
@@ -256,7 +254,7 @@ class mechanical_problem(space_problem):
 
             print(f"(Pseudo) Time-step: {i}")
             residual_args = {"plastic_vars": plastic_vars}
-            nonlinsolv.solve(
+            output = nonlinsolv.solve(
                 dj_n1,
                 Fext_n1,
                 self._compute_residual,
@@ -265,20 +263,20 @@ class mechanical_problem(space_problem):
             )
 
             displacement_list[:, :, i] = np.copy(dj_n1)
-            plastic_vars = deepcopy(residual_args["plastic_vars"])
+            plastic_vars = deepcopy(output["extra_args"]["new_plastic_vars"])
             if save_plastic_vars:
                 all_plastic_vars.append(plastic_vars)
 
         return all_plastic_vars
 
     def _linearized_explicit_dynamic_solver(
-        self, array_in: np.ndarray, mf_args: dict = {}
+        self, array_in: np.ndarray, **kwargs
     ) -> np.ndarray:
 
         if self.allow_lumping:
             if self._diagonal_mass is None or self._mass_property is None:
-                mf_args = self._verify_fun_args(mf_args)
-                self._mass_property = self.material.density(mf_args) * self.part.det_jac
+                kwargs = self._verify_fun_args(kwargs)
+                self._mass_property = self.material.density(kwargs) * self.part.det_jac
                 self._diagonal_mass = bspline_operations.assemble_scalar_u_v(
                     self.part.quadrule_list, self._mass_property, allow_lumping=True
                 )
@@ -304,7 +302,7 @@ class mechanical_problem(space_problem):
                 dotfun=block_dot_product,
                 cleanfun=clean_dirichlet,
                 dod=self.sp_constraint_ctrlpts,
-                args=mf_args,
+                args=kwargs,
             )
             self._linear_residual_list.append(output["res"])
         return output["sol"]
@@ -316,13 +314,12 @@ class mechanical_problem(space_problem):
         time_list: Union[list, np.ndarray],
     ):
         "Solves linear explicit dynamic problem."
-        self.update_properties = not (
-            self.material._has_uniform_density
-        )  # True only if density depends on current plastic variables
+        self.update_properties = False
+        # True only if density depends on current plastic variables
+        # TODO: include a new behaviour where the density depends on the mechanics
 
         assert len(time_list) > 3, "At least 2 steps"
         self.activate_explicit_dynamics()
-        plastic_vars: dict = {}
 
         def predict_displacement(dis, vel, acc, dt):
             return dis + dt * vel + 0.5 * dt**2 * acc
@@ -330,8 +327,8 @@ class mechanical_problem(space_problem):
         def update_velocity(vel, acc_old, acc_new, dt):
             return vel + 0.5 * dt * (acc_old + acc_new)
 
-        def compute_acceleration(problem: mechanical_problem, res, mf_args):
-            return problem._linearized_explicit_dynamic_solver(res, mf_args)
+        def compute_acceleration(problem: mechanical_problem, res):
+            return problem._linearized_explicit_dynamic_solver(res)
 
         # Clean displacement array
         constraint_ctrlpts = self.sp_constraint_ctrlpts
@@ -354,14 +351,12 @@ class mechanical_problem(space_problem):
             a_n1 = np.zeros_like(d_n0)
 
             # Compute residual and update plastic variables
-            residual_args = {"plastic_vars": plastic_vars}
-            residual, mf_args = self._compute_residual(d_n1, Fext, **residual_args)
-            a_n1 += compute_acceleration(self, residual, mf_args)
+            residual = self._compute_residual(d_n1, Fext)[0]
+            a_n1 += compute_acceleration(self, residual)
             v_n1 = update_velocity(v_n0, a_n0, a_n1, dt)
 
             # Save data for next step
             displacement_list[:, :, i] = np.copy(d_n1)
-            plastic_vars = deepcopy(residual_args["plastic_vars"])
             d_n0 = np.copy(d_n1)
             v_n0 = np.copy(v_n1)
             a_n0 = np.copy(a_n1)
