@@ -24,10 +24,10 @@ class nonlinsolver:
     def modify_solver(
         self,
         allow_fixed_point_acceleration: bool = False,
-        allow_linesearch: bool = False,
+        allow_line_search: bool = False,
     ):
         self._allow_acceleration = allow_fixed_point_acceleration
-        self._allow_linesearch = allow_linesearch
+        self._allow_linesearch = allow_line_search
 
     def _compute_anderson_step(self, F_hist: List, X_hist: List, dotfun: Callable):
 
@@ -151,6 +151,7 @@ class nonlinsolver:
         linsolv_args: Dict = {},
         inner_tolerance_args: Dict = {},
         save_information: bool = False,
+        verbose: bool = True
     ):
         "Solver of the nonlinear problem res(x) = 0."
 
@@ -196,7 +197,8 @@ class nonlinsolver:
             )
 
             norm_residual = np.linalg.norm(residual)
-            print(f"Nonlinear error {iteration}: {norm_residual:.3e}")
+            if verbose:
+                print(f"Nonlinear error {iteration}: {norm_residual:.3e}")
             if save_information:
                 nonlinear_residual_list.append(norm_residual)
                 solution_history_list[f"noniter_{iteration}"] = np.copy(solution)
