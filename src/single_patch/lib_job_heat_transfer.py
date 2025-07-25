@@ -121,7 +121,6 @@ class heat_transfer_problem(space_problem):
 
     def _solve_linearized_system(self, array_in: np.ndarray, **kwargs) -> np.ndarray:
 
-        mf_args: dict = kwargs.get("mf_args")
         scalar_coefs: tuple = kwargs.get("scalar_coefs")
         inner_tolerance: float = kwargs.get("inner_tolerance")
 
@@ -148,7 +147,7 @@ class heat_transfer_problem(space_problem):
             Pfun=self.preconditioner.apply_scalar_preconditioner,
             cleanfun=clean_dirichlet,
             dod=self.sp_constraint_ctrlpts,
-            args=mf_args,
+            args=kwargs,
             tolerance=inner_tolerance,
         )
         self._linear_residual_list.append(output["res"])
@@ -531,7 +530,6 @@ class st_heat_transfer_problem(spacetime_problem):
 
     def _solve_linearized_system(self, array_in: np.ndarray, **kwargs) -> np.ndarray:
 
-        mf_args: dict = kwargs.get("mf_args")
         inner_tolerance: float = kwargs.get("inner_tolerance")
         solver_kind: str = str(kwargs.get("solver_kind", "picard")).lower()
 
@@ -557,7 +555,7 @@ class st_heat_transfer_problem(spacetime_problem):
             Pfun=self.preconditioner.apply_spacetime_scalar_preconditioner,
             cleanfun=clean_dirichlet,
             dod=self.sptm_constraint_ctrlpts,
-            args=mf_args,
+            args=kwargs,
             tolerance=inner_tolerance,
         )
         self._linear_residual_list.append(output["res"])
