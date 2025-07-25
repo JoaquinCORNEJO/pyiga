@@ -1,7 +1,7 @@
 from thesis.Incremental.__init__ import *
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch, vtk2png
-from src.lib_material import J2plasticity3d
+from src.lib_material import J2plasticity
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_mechanical import mechanical_problem
 import pickle
@@ -29,7 +29,7 @@ def simulate_el(degree, cuts, quad_args):
         "nbel": np.array([int(2**cuts) for _ in range(3)], dtype=int),
         "extra": {"XY": np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])},
     }
-    material = J2plasticity3d(
+    material = J2plasticity(
         {
             "elastic_modulus": YOUNG,
             "elastic_limit": 5,

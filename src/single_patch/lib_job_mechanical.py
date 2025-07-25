@@ -72,12 +72,11 @@ class mechanical_problem(space_problem):
         "In this algorithm we only consider the linear elastic case"
         mf_args = self._verify_fun_args(mf_args)
         if self._stiffness_property is None:
-            tangent = mf_args.get(
-                "consistent_tangent",
-                self.material.set_linear_elastic_tensor(
+            tangent = mf_args.get("consistent_tangent")
+            if tangent is None:
+                tangent = self.material.set_linear_elastic_tensor(
                     self.part.nbqp_total, self.part.ndim
-                ),
-            )
+                )
             self._stiffness_property = np.zeros(
                 (
                     self.part.ndim,

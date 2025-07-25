@@ -1,7 +1,7 @@
 from src.__init__ import *
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch
-from src.lib_material import J2plasticity3d
+from src.lib_material import J2plasticity
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_mechanical import mechanical_problem
 from time import time
@@ -45,7 +45,7 @@ geo_parameters = {
     "nbel": NBEL,
     "geo_parameters": {"Rin": RINT, "Rex": REXT},
 }
-material = J2plasticity3d(
+material = J2plasticity(
     {"elastic_modulus": YOUNG, "elastic_limit": 1e10, "poisson_ratio": POISSON}
 )
 geometry = mygeomdl(geo_parameters).export_geometry()

@@ -1,7 +1,7 @@
 from src.__init__ import *
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch
-from src.lib_material import J2plasticity1d
+from src.lib_material import J2plasticity
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_mechanical import mechanical_problem
 
@@ -24,12 +24,13 @@ geometry = mygeomdl(
 patch = singlepatch(geometry, {"quadrule": "wq", "type": 2})
 
 # Define plasticity model
-material = J2plasticity1d(
+material = J2plasticity(
     {
         "elastic_modulus": YOUNG,
         "elastic_limit": 1.0e1,
         "iso_hardening": {"name": "linear", "Eiso": YOUNG / 5},
-    }
+    },
+    is_unidimensional=True
 )
 
 

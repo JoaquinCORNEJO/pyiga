@@ -1,7 +1,7 @@
 from src.__init__ import *
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch
-from src.lib_material import J2plasticity3d
+from src.lib_material import J2plasticity
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_mechanical import mechanical_problem
 
@@ -21,7 +21,7 @@ geometry = mygeomdl(
 patch = singlepatch(geometry, {"quadrule": "gs"})
 
 # Add material
-material = J2plasticity3d({"elastic_modulus": 1e2, "poisson_ratio": 0.3})
+material = J2plasticity({"elastic_modulus": 1e2, "poisson_ratio": 0.3})
 
 # Set Dirichlet boundaries
 boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=2)

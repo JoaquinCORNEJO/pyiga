@@ -1,5 +1,5 @@
 from src.__init__ import *
-from src.lib_material import J2plasticity3d
+from src.lib_material import J2plasticity
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch
 from src.lib_boundary import boundary_condition
@@ -24,7 +24,7 @@ def surface_force(args: dict):
 
 # Create geometry
 degree, nbel = 2, 8
-material = J2plasticity3d(
+material = J2plasticity(
     {
         "elastic_modulus": YOUNG,
         "elastic_limit": 1,

@@ -7,7 +7,7 @@
 from src.__init__ import *
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch
-from src.lib_material import J2plasticity1d
+from src.lib_material import J2plasticity
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_mechanical import mechanical_problem
 
@@ -27,7 +27,7 @@ def simulate(degree):
     ).export_geometry()
     patch = singlepatch(geometry, quad_args={"quadrule": "gs", "type": "leg"})
     boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
-    material = J2plasticity1d({"elastic_modulus": YOUNG})
+    material = J2plasticity({"elastic_modulus": YOUNG}, is_unidimensional=True)
     material.add_density(RHO, is_uniform=True)
     problem = mechanical_problem(material, patch, boundary)
     frequency = np.sqrt(problem.solve_eigenvalue_problem(which="SM", k=nbel-2)[0][1:])

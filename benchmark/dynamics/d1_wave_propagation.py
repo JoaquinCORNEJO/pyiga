@@ -7,7 +7,7 @@
 from src.__init__ import *
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch
-from src.lib_material import J2plasticity1d
+from src.lib_material import J2plasticity
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_mechanical import mechanical_problem
 
@@ -33,7 +33,7 @@ patch = singlepatch(geometry, quad_args={"quadrule": "gs"})
 boundary = boundary_condition(nbctrlpts=patch.nbctrlpts, nb_vars_per_ctrlpt=1)
 
 # Set material
-material = J2plasticity1d({"elastic_modulus": YOUNG})
+material = J2plasticity({"elastic_modulus": YOUNG}, is_unidimensional=True)
 material.add_density(RHO, is_uniform=True)
 
 # Set mechanical problem

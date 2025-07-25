@@ -1,7 +1,7 @@
 from src.__init__ import *
 from src.lib_mygeometry import mygeomdl
 from src.lib_part import singlepatch
-from src.lib_material import J2plasticity3d
+from src.lib_material import J2plasticity
 from src.lib_boundary import boundary_condition
 from src.single_patch.lib_job_mechanical import mechanical_problem
 from time import time
@@ -74,7 +74,7 @@ boundary.add_constraint(
 )
 
 # Set material
-material = J2plasticity3d({"elastic_modulus": YOUNG, "poisson_ratio": POISSON})
+material = J2plasticity({"elastic_modulus": YOUNG, "poisson_ratio": POISSON})
 material.add_density(RHO, is_uniform=True)
 
 # Set mechanical problem
