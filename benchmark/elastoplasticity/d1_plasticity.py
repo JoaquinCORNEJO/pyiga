@@ -13,7 +13,7 @@ def volume_force(args: dict):
 
 
 # Global variables
-DEGREE, NBEL = 2, 4
+DEGREE, NBEL = 2, 16
 YOUNG, LENGTH = 1e6, 1
 NBSTEPS = 21
 
@@ -28,7 +28,7 @@ material = J2plasticity1d(
     {
         "elastic_modulus": YOUNG,
         "elastic_limit": 1.0e1,
-        "iso_hardening": {"name": "linear", "Eiso": YOUNG / 10},
+        "iso_hardening": {"name": "linear", "Eiso": YOUNG / 5},
     }
 )
 

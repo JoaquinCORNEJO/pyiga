@@ -159,16 +159,21 @@ class heat_transfer_problem(space_problem):
         assert isinstance(increment, np.ndarray), "Define a numpy object"
         # Get other variables
         flux = kwargs.get("flux", None)
-        flux_factor = kwargs.get("flux_factor", 1.0)
+        flux_factor = kwargs.get("flux_factor", None)
         # Update
         temperature += increment
-        if flux is not None:
+        if flux is not None and flux_factor is not None:
             flux += increment * flux_factor
-        kwargs = kwargs | {"flux": flux}
+        kwargs.update({"flux": flux})
 
     def solve_heat_transfer(
         self, temperature_list: np.ndarray, external_force_list: np.ndarray, **kwargs
     ):
+
+        allow_fixed_point_acceleration = kwargs.get(
+            "allow_anderson_acceleration", False
+        )
+        allow_linesearch = kwargs.get("allow_line_search", False)
 
         # Decide if it is a linear or nonlinear problem
         self.update_properties = not (
@@ -180,6 +185,10 @@ class heat_transfer_problem(space_problem):
             maxiters=self._maxiters_nonlinear,
             tolerance=self._tolerance_nonlinear,
             linear_solver_tolerance=self._tolerance_linear,
+        )
+        nonlinsolv.modify_solver(
+            allow_fixed_point_acceleration=allow_fixed_point_acceleration,
+            allow_line_search=allow_linesearch,
         )
 
         if external_force_list.ndim == 1 and temperature_list.ndim == 1:
@@ -578,11 +587,17 @@ class st_heat_transfer_problem(spacetime_problem):
         auto_inner_tolerance: bool = True,
         auto_outer_tolerance: bool = False,
         inner_tolerance_args: dict = {"solver_kind": "picard"},
+        **kwargs,
     ):
 
         assert (
             inner_tolerance_args.get("solver_kind") is not None
         ), "Define the type of solver"
+
+        allow_fixed_point_acceleration = kwargs.get(
+            "allow_anderson_acceleration", False
+        )
+        allow_linesearch = kwargs.get("allow_line_search", False)
 
         # Decide if linear or nonlinear problem
         self.update_properties = (
@@ -606,14 +621,19 @@ class st_heat_transfer_problem(spacetime_problem):
             linear_solver_tolerance=self._tolerance_linear,
         )
 
+        nonlinsolv.modify_solver(
+            allow_fixed_point_acceleration=allow_fixed_point_acceleration,
+            allow_line_search=allow_linesearch,
+        )
+
         output = nonlinsolv.solve(
             temperature,
             external_force,
             self._compute_residual,
             self._solve_linearized_system,
-            select_inner_tolerance=super().select_inner_tolerance
-            if auto_inner_tolerance
-            else None,
+            select_inner_tolerance=(
+                super().select_inner_tolerance if auto_inner_tolerance else None
+            ),
             residual_args={},
             linsolv_args={"solver_kind": inner_tolerance_args.get("solver_kind")},
             inner_tolerance_args=inner_tolerance_args,

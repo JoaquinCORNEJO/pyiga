@@ -1,6 +1,7 @@
 from .__init__ import *
 from typing import Callable, Union, Tuple
 from abc import ABC, abstractmethod
+from src.lib_nonlinear_solver import nonlinsolver
 
 
 def compute_double_contraction(
@@ -245,6 +246,21 @@ class plasticity(material, ABC):
             False if (len(iso_args) == 0 and len(kine_args) == 0) else True
         )
 
+    def _solve_nonlinearity(
+        self, plseq: np.ndarray, compute_residual: Callable
+    ) -> Tuple[np.ndarray, dict]:
+        def solve_linearization(yield_fun: np.ndarray, **kwargs: dict):
+            ders_yield_fun = kwargs.get("ders_yield_fun")
+            assert ders_yield_fun is not None
+            return yield_fun / ders_yield_fun
+
+        dgamma = np.zeros_like(plseq)
+        nonlinsolv = nonlinsolver(tolerance=self.threshold, maxiters=self.maxiters)
+        output = nonlinsolv.solve(
+            dgamma, None, compute_residual, solve_linearization, verbose=False
+        )
+        return dgamma, output["extra_args"]
+
     @abstractmethod
     def eval_elastic_stress(self):
         pass
@@ -279,41 +295,39 @@ class J2plasticity1d(plasticity):
         back_n0: np.ndarray,
         plseq_n0: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        dgamma = np.zeros_like(plseq_n0)
-        theta = np.zeros_like(plseq_n0)
-        plseq_n1 = np.copy(plseq_n0)
-        for k in range(super().maxiters):
-            (
-                sum_back,
-                hat_back,
-                const_1,
-                const_2,
-            ) = self.kinematic_hardening.sum_chaboche_terms(dgamma, back_n0)
-            shifted_stress = stress_trial - sum_back
-            norm_shifted = np.ravel(np.abs(shifted_stress))
-
-            fun_yield = (
-                norm_shifted
-                - (self.elastic_modulus + const_1) * dgamma
-                - self.isotropic_hardening.iso_hardening_function(plseq_n1)
+        def compute_residual(dg: np.ndarray, f: None):
+            output = self.kinematic_hardening.sum_chaboche_terms(dg, back_n0)
+            shft_stress = stress_trial - output[0]
+            shft_stress_norm = np.ravel(np.abs(shft_stress))
+            normal_shft_stress = np.sign(shft_stress)
+            plseq_n1 = plseq_n0 + dg
+            yield_fun = (
+                -shft_stress_norm
+                + (self.elastic_modulus + output[2]) * dg
+                + self.isotropic_hardening.iso_hardening_function(plseq_n1)
             )
-            res = np.linalg.norm(fun_yield)
-            if k == 0:
-                res_ref = res
-            if res <= max([super().threshold * res_ref, super().safeguard]):
-                break
-
-            normal = np.sign(shifted_stress)
-            ders_fun_yield = (
-                compute_double_contraction(normal, hat_back)
-                - (self.elastic_modulus + const_2)
+            ders_yield_fun = (
+                compute_double_contraction(normal_shft_stress, output[1])
+                - (self.elastic_modulus + output[3])
                 - self.isotropic_hardening.iso_dershardening_function(plseq_n1)
             )
-            dgamma -= fun_yield / ders_fun_yield
-            plseq_n1 = plseq_n0 + dgamma
-            theta = -self.elastic_modulus / ders_fun_yield
+            extra_args = dict(
+                hat_back=output[1],
+                shifted_stress_norm=shft_stress_norm,
+                normal_shifted_stress=normal_shft_stress,
+                ders_yield_fun=ders_yield_fun,
+            )
+            return yield_fun, extra_args
 
-        return dgamma, hat_back, normal, theta
+        dgamma, extra_args = super()._solve_nonlinearity(plseq_n0, compute_residual)
+        ders_yield_fun = extra_args.get("ders_yield_fun")
+        normal_shifted_stress = extra_args.get("normal_shifted_stress")
+        hat_back = extra_args.get("hat_back")
+
+        if ders_yield_fun is not None:
+            theta = -self.elastic_modulus / ders_yield_fun
+
+        return dgamma, hat_back, normal_shifted_stress, theta
 
     def return_mapping(
         self, strain_n1: np.ndarray, plastic_vars: dict, update_tangent: bool = True
@@ -341,10 +355,10 @@ class J2plasticity1d(plasticity):
         J2_trial = np.abs(
             vonmises_trial
         ) - self.isotropic_hardening.iso_hardening_function(plseq_n0)
-        stress_n1 = stress_trial
-        plasticstrain_n1 = plasticstrain_n0
-        plseq_n1 = plseq_n0
-        back_n1 = back_n0
+        stress_n1 = np.copy(stress_trial)
+        plasticstrain_n1 = np.copy(plasticstrain_n0)
+        plseq_n1 = np.copy(plseq_n0)
+        back_n1 = np.copy(back_n0)
         consistent_tangent = self.set_linear_elastic_tensor(strain_shape, ndim=1)
 
         if np.any(J2_trial > super().threshold * self.elastic_limit):
@@ -379,10 +393,15 @@ class J2plasticity1d(plasticity):
                     1 - theta
                 )
 
-        plastic_vars["plastic_strain"] = plasticstrain_n1
-        plastic_vars["plastic_equivalent"] = plseq_n1
-        plastic_vars["back_stress"] = back_n1
-        return stress_n1, {"consistent_tangent": consistent_tangent}
+        new_plastic_vars = {
+            "plastic_strain": plasticstrain_n1,
+            "plastic_equivalent": plseq_n1,
+            "back_stress": back_n1,
+        }
+        return stress_n1, {
+            "consistent_tangent": consistent_tangent,
+            "new_plastic_vars": new_plastic_vars,
+        }
 
 
 class J2plasticity3d(plasticity):
@@ -424,42 +443,42 @@ class J2plasticity3d(plasticity):
         back_n0: np.ndarray,
         plseq_n0: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        dgamma, plseq_n1 = np.zeros_like(plseq_n0), np.copy(plseq_n0)
-        theta_2, theta_1 = np.zeros_like(plseq_n0), np.zeros_like(plseq_n0)
-
-        for k in range(super().maxiters):
-            (
-                sum_back,
-                hat_back,
-                const_1,
-                const_2,
-            ) = self.kinematic_hardening.sum_chaboche_terms(dgamma, back_n0)
-            shifted_stress = compute_deviatoric(stress_trial - sum_back)
-            norm_shifted = compute_norm_tensor(shifted_stress)
-
-            fun_yield = (
-                np.sqrt(1.5) * norm_shifted
-                - 1.5 * (2 * self.lame_mu + const_1) * dgamma
-                - self.isotropic_hardening.iso_hardening_function(plseq_n1)
+        def compute_residual(dg: np.ndarray, f: None):
+            output = self.kinematic_hardening.sum_chaboche_terms(dg, back_n0)
+            shft_stress = compute_deviatoric(stress_trial - output[0])
+            shft_stress_norm = compute_norm_tensor(shft_stress)
+            normal_shft_stress = shft_stress / shft_stress_norm
+            plseq_n1 = plseq_n0 + dg
+            yield_fun = (
+                -np.sqrt(1.5) * shft_stress_norm
+                + 1.5 * (2 * self.lame_mu + output[2]) * dg
+                + self.isotropic_hardening.iso_hardening_function(plseq_n1)
             )
-            res = np.linalg.norm(fun_yield)
-            if k == 0:
-                res_ref = res
-            if res <= max([super().threshold * res_ref, super().safeguard]):
-                break
-
-            normal = shifted_stress / norm_shifted
-            ders_fun_yield = (
-                np.sqrt(1.5) * compute_double_contraction(normal, hat_back)
-                - 1.5 * (2 * self.lame_mu + const_2)
+            ders_yield_fun = (
+                np.sqrt(1.5) * compute_double_contraction(normal_shft_stress, output[1])
+                - 1.5 * (2 * self.lame_mu + output[3])
                 - self.isotropic_hardening.iso_dershardening_function(plseq_n1)
             )
-            dgamma -= fun_yield / ders_fun_yield
-            plseq_n1 = plseq_n0 + dgamma
-            theta_1 = -3 * self.lame_mu / ders_fun_yield
-            theta_2 = 2 * self.lame_mu * dgamma * np.sqrt(1.5) / norm_shifted
+            extra_args = dict(
+                hat_back=output[1],
+                shifted_stress_norm=shft_stress_norm,
+                normal_shifted_stress=normal_shft_stress,
+                ders_yield_fun=ders_yield_fun,
+            )
+            return yield_fun, extra_args
 
-        return dgamma, hat_back, normal, theta_1, theta_2
+        dgamma, extra_args = super()._solve_nonlinearity(plseq_n0, compute_residual)
+        ders_yield_fun = extra_args.get("ders_yield_fun")
+        shifted_stress_norm = extra_args.get("shifted_stress_norm")
+        normal_shifted_stress = extra_args.get("normal_shifted_stress")
+        hat_back = extra_args.get("hat_back")
+
+        if ders_yield_fun is not None:
+            theta_1 = -3 * self.lame_mu / ders_yield_fun
+        if shifted_stress_norm is not None:
+            theta_2 = 2 * self.lame_mu * dgamma * np.sqrt(1.5) / shifted_stress_norm
+
+        return dgamma, hat_back, normal_shifted_stress, theta_1, theta_2
 
     def return_mapping(
         self, strain_n1: np.ndarray, plastic_vars: dict, update_tangent: bool = True
@@ -491,10 +510,10 @@ class J2plasticity3d(plasticity):
         )
 
         # Set default values
-        stress_n1 = stress_trial
-        plasticstrain_n1 = plasticstrain_n0
-        plseq_n1 = plseq_n0
-        back_n1 = back_n0
+        stress_n1 = np.copy(stress_trial)
+        plasticstrain_n1 = np.copy(plasticstrain_n0)
+        plseq_n1 = np.copy(plseq_n0)
+        back_n1 = np.copy(back_n0)
         lame_lambda = self.lame_lambda * np.ones_like(J2_trial)
         lame_mu = self.lame_mu * np.ones_like(J2_trial)
         consistent_tangent = self.set_linear_elastic_tensor(strain_shape, ndim=3)
@@ -554,7 +573,13 @@ class J2plasticity3d(plasticity):
                         )
                     )
 
-        plastic_vars["plastic_strain"] = plasticstrain_n1
-        plastic_vars["plastic_equivalent"] = plseq_n1
-        plastic_vars["back_stress"] = back_n1
-        return stress_n1, {"consistent_tangent": consistent_tangent}
+        new_plastic_vars = {
+            "plastic_strain": plasticstrain_n1,
+            "plastic_equivalent": plseq_n1,
+            "back_stress": back_n1,
+        }
+
+        return stress_n1, {
+            "consistent_tangent": consistent_tangent,
+            "new_plastic_vars": new_plastic_vars,
+        }

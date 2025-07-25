@@ -169,7 +169,6 @@ class mechanical_problem(space_problem):
     ) -> Tuple[np.ndarray, dict]:
 
         plastic_vars: dict = kwargs.get("plastic_vars")
-
         if self.update_properties:
             self.clear_properties()
         convert_to_3d = False if self.part.ndim == 1 else True
@@ -207,7 +206,11 @@ class mechanical_problem(space_problem):
         displacement_list: np.ndarray,
         external_force_list: np.ndarray,
         save_plastic_vars: bool = False,
+        **kwargs,
     ) -> dict:
+
+        allow_fixed_point_acceleration = False
+        allow_linesearch = kwargs.get("allow_line_search", False)
 
         # Decide if it is a linear or nonlinear problem
         self.update_properties = self.material._activated_plasticity
@@ -216,6 +219,11 @@ class mechanical_problem(space_problem):
             maxiters=self._maxiters_nonlinear,
             tolerance=self._tolerance_nonlinear,
             linear_solver_tolerance=self._tolerance_linear,
+        )
+
+        nonlinsolv.modify_solver(
+            allow_fixed_point_acceleration=allow_fixed_point_acceleration,
+            allow_line_search=allow_linesearch,
         )
 
         if external_force_list.ndim == 2 and displacement_list.ndim == 2:
